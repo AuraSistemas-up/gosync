@@ -10,3 +10,6 @@ public/data/
 public/fotos/
 .fb.env
 public/banners/
+public/logo/
+public/admin/credenciais.json
+public/admin/tentativas.json

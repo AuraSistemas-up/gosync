@@ -10,6 +10,14 @@
 3. Preencha a URL da API do ERP e o WhatsApp da loja → *Salvar*.
 4. *Publicar / atualizar o site* (uma vez; o site já vem dentro do instalador).
 
+## Painel admin (`/admin`)
+Em `https://seusite.com.br/admin/`: logo, cor, nome da loja e banners do carrossel (até 6, 1600 × 500 px).
+- Usuário inicial: `kuelhos`. **Troque a senha** na seção *Segurança* do painel no primeiro acesso.
+- Roda em PHP 7+ na própria hospedagem (`public/admin/api.php`); grava em `data/config.json`, `banners/` e `logo/`.
+- O painel tem prioridade sobre o nome/cor/banners configurados no GoSync.
+- Se algo falhar no servidor, abra `/admin/api.php?a=ping` (mostra a versão do PHP e se as pastas são graváveis).
+- No `npm run dev` não há PHP: o `dev/admin-mock.mjs` simula a API.
+
 ## Gerar uma nova versão
 ```powershell
 cd tray

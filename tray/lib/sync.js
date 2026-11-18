@@ -205,6 +205,9 @@ async function publishSite(cfg, { log = () => {} } = {}) {
     fs.rmSync(path.join(dist, "data"), { recursive: true, force: true });
     fs.rmSync(path.join(dist, "fotos"), { recursive: true, force: true });
     fs.rmSync(path.join(dist, "banners"), { recursive: true, force: true });
+    fs.rmSync(path.join(dist, "logo"), { recursive: true, force: true });
+    fs.rmSync(path.join(dist, "admin", "credenciais.json"), { force: true });
+    fs.rmSync(path.join(dist, "admin", "tentativas.json"), { force: true });
   }
 
   const client = await openFtp(cfg);

@@ -8,11 +8,36 @@ export type CatalogState =
 
 // Uma única requisição por página, compartilhada entre cabeçalho, catálogo e produto.
 let pending: Promise<CatalogFile> | null = null;
+
+/** Configurações do painel admin (/data/config.json): nome, cor, logo e banners. Opcional. */
+async function loadConfig(): Promise<{ name?: string; primaryColor?: string; logo?: string; banners?: { image: string; link?: string }[] } | null> {
+  try {
+    const r = await fetch("/data/config.json", { cache: "no-cache" });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 function load(): Promise<CatalogFile> {
-  pending ??= fetch("/data/catalog.json", { cache: "no-cache" })
-    .then((r) => {
+  pending ??= Promise.all([
+    fetch("/data/catalog.json", { cache: "no-cache" }).then((r) => {
       if (!r.ok) throw new Error(String(r.status));
       return r.json() as Promise<CatalogFile>;
+    }),
+    loadConfig(),
+  ])
+    .then(([data, cfg]) => {
+      // O painel admin tem prioridade sobre o que veio do GoSync/ERP.
+      if (cfg) {
+        const s = { ...(data.store ?? {}) };
+        if (cfg.name) s.name = cfg.name;
+        if (cfg.primaryColor) s.primaryColor = cfg.primaryColor;
+        if (cfg.logo) s.logo = cfg.logo;
+        if (cfg.banners?.length) s.banners = cfg.banners;
+        data.store = s;
+      }
+      return data;
     })
     .catch((e) => {
       pending = null; // permite tentar de novo
@@ -23,8 +48,18 @@ function load(): Promise<CatalogFile> {
 
 /** Aplica a cor principal e o nome da loja definidos no GoSync (tema por variável CSS). */
 function applyTheme(data: CatalogFile) {
-  const { name, primaryColor } = data.store ?? {};
+  const { name, primaryColor, logo } = data.store ?? {};
   if (primaryColor && /^#[0-9a-f]{6}$/i.test(primaryColor)) document.documentElement.style.setProperty("--primary", primaryColor);
+  if (logo) {
+    const img = document.getElementById("brandLogo") as HTMLImageElement | null;
+    if (img) {
+      img.src = logo;
+      img.hidden = false;
+      img.alt = name ?? "Logo";
+    }
+    document.getElementById("brandMono")?.setAttribute("hidden", "");
+    document.getElementById("companyName")?.setAttribute("hidden", ""); // o logo já traz o nome
+  }
   if (name) {
     const el = document.getElementById("companyName");
     if (el) el.textContent = name;

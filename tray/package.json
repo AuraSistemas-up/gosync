@@ -1,7 +1,7 @@
 {
   "name": "gosync",
   "productName": "GoSync",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "GoSync: sincroniza ERP → Locaweb (bandeja do relógio)",
   "author": "AuraSistemas-up",
   "main": "main.js",
