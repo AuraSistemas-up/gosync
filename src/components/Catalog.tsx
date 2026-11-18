@@ -110,6 +110,14 @@ export default function Catalog({ products, whatsapp = "", message, banners }: {
   const [brandQ, setBrandQ] = useState("");
   const set = (patch: Partial<F>) => { setF((x) => ({ ...x, ...patch })); setPage(1); };
 
+  // Barra do celular / outras páginas pedem para abrir os filtros.
+  useEffect(() => {
+    const open = () => { setMobileOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    window.addEventListener("gosync:abrir-filtros", open);
+    if (new URLSearchParams(location.search).get("filtros")) open();
+    return () => window.removeEventListener("gosync:abrir-filtros", open);
+  }, []);
+
   // Mantém a URL em sincronia (links compartilháveis e botão voltar do produto).
   useEffect(() => {
     const u = new URLSearchParams();
@@ -160,6 +168,15 @@ export default function Catalog({ products, whatsapp = "", message, banners }: {
 
   const catName = f.cat ? categories.find((c) => c.slug === f.cat)?.name : null;
   const title = f.q ? `Resultados para “${f.q}”` : catName ?? "Todos os produtos";
+
+  // Filtros ativos como "chips" removíveis acima dos produtos.
+  const chips: { key: string; label: string; clear: () => void }[] = [];
+  if (f.q) chips.push({ key: "q", label: `Busca: “${f.q}”`, clear: () => set({ q: "" }) });
+  if (f.cat) chips.push({ key: "cat", label: catName ?? f.cat, clear: () => set({ cat: null }) });
+  if (f.brand) chips.push({ key: "brand", label: f.brand, clear: () => set({ brand: null }) });
+  if (f.size) chips.push({ key: "size", label: `Nº ${f.size}`, clear: () => set({ size: null }) });
+  if (f.gender) chips.push({ key: "gender", label: label(f.gender), clear: () => set({ gender: null }) });
+  if (f.price !== "all") chips.push({ key: "price", label: PRICE_RANGES.find((r) => r.id === f.price)?.label ?? f.price, clear: () => set({ price: "all" }) });
 
   return (
     <div class="layout">
@@ -260,6 +277,17 @@ export default function Catalog({ products, whatsapp = "", message, banners }: {
             </select>
           </div>
         </div>
+
+        {chips.length > 0 && (
+          <div class="active-chips" aria-label="Filtros ativos">
+            {chips.map((c) => (
+              <button key={c.key} type="button" class="achip" onClick={c.clear} aria-label={`Remover filtro ${c.label}`}>
+                {c.label} <span aria-hidden="true">×</span>
+              </button>
+            ))}
+            {chips.length > 1 && <button type="button" class="achip clear" onClick={clear}>Limpar tudo</button>}
+          </div>
+        )}
 
         {results.length === 0 ? (
           <div class="empty-state">

@@ -40,6 +40,7 @@ type Cfg = {
   message?: string;
   hero?: { enabled?: boolean; title?: string; subtitle?: string };
   photoStyle?: "classic" | "spotlight" | "frame";
+  footer?: { about?: string; address?: string; hours?: string; phone?: string; instagram?: string };
 };
 
 /** Configurações do painel admin (/data/config.json). Opcional. */
@@ -71,6 +72,7 @@ function load(): Promise<CatalogFile> {
         if (cfg.message) s.message = cfg.message;
         if (cfg.hero) s.hero = cfg.hero;
         if (cfg.photoStyle) s.photoStyle = cfg.photoStyle;
+        if (cfg.footer && Object.values(cfg.footer).some(Boolean)) s.footer = cfg.footer;
         if (cfg.whatsapp) data.whatsapp = cfg.whatsapp.replace(/\D/g, "");
         data.store = s;
       }

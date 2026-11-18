@@ -174,6 +174,19 @@
     </section>
 
     <section class="card">
+      <h2>Rodapé da loja</h2>
+      <p class="hint">Aparece no fim do site. Só o que você preencher é mostrado; deixe vazio o que não quiser.</p>
+      <label>Sobre a loja (frase curta)<textarea id="ftAbout" rows="2" maxlength="300" placeholder="Há mais de 20 anos calçando a família com qualidade e bom preço."></textarea></label>
+      <label>Endereço<input type="text" id="ftAddress" maxlength="200" placeholder="Rua Exemplo, 123 - Centro - Cidade/UF" /></label>
+      <div class="row">
+        <label class="grow">Horário de atendimento<input type="text" id="ftHours" maxlength="200" placeholder="Seg a Sex 9h–18h · Sáb 9h–13h" /></label>
+        <label class="grow">Telefone<input type="text" id="ftPhone" maxlength="30" placeholder="(32) 3333-4444" /></label>
+      </div>
+      <label>Instagram (só o @usuário)<input type="text" id="ftInsta" maxlength="60" placeholder="@kuelhos_sapatos" /></label>
+      <p class="hint">O botão "Como chegar" abre o endereço no Google Maps automaticamente.</p>
+    </section>
+
+    <section class="card">
       <h2>Segurança</h2>
       <p class="hint">Troque a senha inicial por uma senha só sua (mínimo 8 caracteres).</p>
       <form id="pwForm" class="row" autocomplete="off">
@@ -242,6 +255,11 @@ function renderExtras() {
   $("#heroOn").checked = !!cfg.hero.enabled;
   $("#heroTitle").value = cfg.hero.title || "";
   $("#heroSub").value = cfg.hero.subtitle || "";
+  $("#ftAbout").value = cfg.footer.about || "";
+  $("#ftAddress").value = cfg.footer.address || "";
+  $("#ftHours").value = cfg.footer.hours || "";
+  $("#ftPhone").value = cfg.footer.phone || "";
+  $("#ftInsta").value = cfg.footer.instagram ? "@" + cfg.footer.instagram : "";
   $("#wa").value = cfg.whatsapp || "";
   $("#waMsg").value = cfg.message || DEFAULT_MESSAGE;
   document.querySelectorAll(".style").forEach((s) => { const on = s.dataset.v === cfg.photoStyle; s.classList.toggle("on", on); s.querySelector("input").checked = on; });
@@ -326,7 +344,10 @@ $("#colorHex").oninput = (e) => { let v = e.target.value.trim(); if (v && v[0] !
 $("#heroOn").onchange = (e) => { cfg.hero.enabled = e.target.checked; markDirty(); renderPreviews(); };
 $("#heroTitle").oninput = (e) => { cfg.hero.title = e.target.value; markDirty(); renderPreviews(); };
 $("#heroSub").oninput = (e) => { cfg.hero.subtitle = e.target.value; markDirty(); renderPreviews(); };
-$("#wa").oninput = (e) => { cfg.whatsapp = e.target.value.replace(/\D/g, ""); if (e.target.value !== cfg.whatsapp) e.target.value = cfg.whatsapp; markDirty(); };
+for (const [id, key] of [["#ftAbout", "about"], ["#ftAddress", "address"], ["#ftHours", "hours"], ["#ftPhone", "phone"], ["#ftInsta", "instagram"]]) {
+  $(id).oninput = (e) => { cfg.footer[key] = e.target.value; markDirty(); };
+}
+$("#wa").oninput =(e) => { cfg.whatsapp = e.target.value.replace(/\D/g, ""); if (e.target.value !== cfg.whatsapp) e.target.value = cfg.whatsapp; markDirty(); };
 $("#waMsg").oninput = (e) => { cfg.message = e.target.value; markDirty(); renderPreviews(); };
 $("#waReset").onclick = () => { cfg.message = ""; $("#waMsg").value = DEFAULT_MESSAGE; markDirty(); renderPreviews(); };
 document.querySelectorAll(".style").forEach((s) => s.addEventListener("click", () => { cfg.photoStyle = s.dataset.v; markDirty(); renderExtras(); }));
@@ -348,7 +369,7 @@ $("#bannerFile").onchange = async (e) => {
 };
 $("#saveBtn").onclick = async () => {
   $("#saveBtn").disabled = true;
-  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners, whatsapp: cfg.whatsapp, message: (cfg.message || "").trim() === DEFAULT_MESSAGE ? "" : cfg.message, hero: cfg.hero, photoStyle: cfg.photoStyle } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
+  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners, whatsapp: cfg.whatsapp, message: (cfg.message || "").trim() === DEFAULT_MESSAGE ? "" : cfg.message, hero: cfg.hero, photoStyle: cfg.photoStyle, footer: cfg.footer } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
   catch (err) { toast(err.message, "bad"); $("#saveBtn").disabled = false; }
 };
 $("#pwForm").onsubmit = async (e) => {
@@ -362,6 +383,7 @@ async function load() {
   cfg = r.config; cfg.banners = cfg.banners || []; maxBanners = r.maxBanners || 6; $("#maxB").textContent = maxBanners;
   if (!cfg.primaryColor) cfg.primaryColor = "#a33a33";
   cfg.hero = Object.assign({ enabled: true, title: "", subtitle: "" }, cfg.hero || {});
+  cfg.footer = Object.assign({ about: "", address: "", hours: "", phone: "", instagram: "" }, cfg.footer || {});
   cfg.whatsapp = cfg.whatsapp || ""; cfg.message = cfg.message || ""; cfg.photoStyle = cfg.photoStyle || "spotlight";
   render(); markDirty(false); show("panel");
 }

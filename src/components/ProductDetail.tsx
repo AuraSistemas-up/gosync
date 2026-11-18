@@ -1,4 +1,5 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { favorites, useFavorites } from "../lib/favorites";
 import type { Product } from "../types/product";
 import { buildWhatsMessage, categoryName } from "../lib/catalog";
 import { brl } from "./ProductCard";
@@ -35,9 +36,24 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
   const [vIdx, setVIdx] = useState(start);
   const [size, setSize] = useState<string | null>(startSize);
   const [photo, setPhoto] = useState(() => photoFor(start, startSize));
+  const [zoomed, setZoomed] = useState(false);
+  const touchX = useRef<number | null>(null);
+  const fav = useFavorites().some((x) => x.id === product.id);
 
   const v = product.variants[vIdx];
   const photos = photosOf(vIdx);
+  const go = (d: number) => { setPhoto((p) => (p + d + photos.length) % photos.length); setZoomed(false); };
+
+  // Setas do teclado trocam a foto.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (photos.length < 2) return;
+      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowRight") go(1);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [photos.length]);
   const price = product.promoPrice ?? product.price;
   const selected = v.sizes.find((s) => s.size === size && s.available);
 
@@ -47,8 +63,10 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
     setVIdx(i);
     setSize(keep);
     setPhoto(photoFor(i, keep));
+    if (fav) favorites.update(product.id, { color: product.variants[i].colorSlug, size: keep ?? undefined }); // mantém o favorito igual à escolha
   };
   const pickSize = (s: string) => {
+    if (fav) favorites.update(product.id, { color: v.colorSlug, size: s });
     setSize(s);
     setPhoto(photoFor(vIdx, s)); // troca para a foto da variação escolhida
   };
@@ -73,8 +91,38 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
   return (
     <div class="product-modal-body">
       <div class="pm-gallery">
-        <div class="pm-photo">
-          {photos[photo] ? <img src={photos[photo]} alt={`${product.name} ${v.color}`} /> : <span class="no-photo">Sem foto</span>}
+        <div
+          class={`pm-photo${zoomed ? " zoomed" : ""}`}
+          onMouseMove={(e) => {
+            // O ponto de origem do zoom acompanha o mouse: a foto "anda" sob o cursor.
+            const r = e.currentTarget.getBoundingClientRect();
+            e.currentTarget.style.setProperty("--ox", `${((e.clientX - r.left) / r.width) * 100}%`);
+            e.currentTarget.style.setProperty("--oy", `${((e.clientY - r.top) / r.height) * 100}%`);
+          }}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest(".pm-arrow")) return;
+            const r = e.currentTarget.getBoundingClientRect();
+            e.currentTarget.style.setProperty("--ox", `${((e.clientX - r.left) / r.width) * 100}%`);
+            e.currentTarget.style.setProperty("--oy", `${((e.clientY - r.top) / r.height) * 100}%`);
+            setZoomed((z) => !z); // toque/clique alterna o zoom (celular); com mouse o zoom é ao passar por cima
+          }}
+          onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchX.current == null || photos.length < 2 || zoomed) return;
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            touchX.current = null;
+            if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); // deslizar troca a foto
+          }}
+        >
+          {photos[photo] ? <img src={photos[photo]} alt={`${product.name} ${v.color}`} draggable={false} /> : <span class="no-photo">Sem foto</span>}
+          {photos.length > 1 && (
+            <>
+              <button type="button" class="pm-arrow prev" aria-label="Foto anterior" onClick={() => go(-1)}>‹</button>
+              <button type="button" class="pm-arrow next" aria-label="Próxima foto" onClick={() => go(1)}>›</button>
+              <span class="pm-count">{photo + 1} / {photos.length}</span>
+            </>
+          )}
+          <span class="pm-zoom-hint" aria-hidden="true">Passe o mouse para ampliar</span>
         </div>
         {photos.length > 1 && (
           <div class="pm-thumbs">
@@ -92,7 +140,13 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
           {product.brand && <span class="pill">{product.brand}</span>}
           {product.category && <span class="pill" style="opacity:.75">{categoryName(product)}</span>}
         </div>
-        <h1 class="pm-title">{product.name}</h1>
+        <div class="pm-title-row">
+          <h1 class="pm-title">{product.name}</h1>
+          <button type="button" class={`heart big${fav ? " on" : ""}`} aria-pressed={fav} aria-label={fav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+            onClick={() => favorites.toggle(product.id, v.colorSlug, selected?.size)}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 5.8-8 11-8 11z" /></svg>
+          </button>
+        </div>
 
         <div class="pm-price-row">
           <span class={`pm-price${product.promoPrice ? " promo" : ""}`}>{brl(price)}</span>

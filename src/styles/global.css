@@ -22,7 +22,7 @@
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Inter Variable", Inter, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   background-image:
     radial-gradient(1100px 520px at 12% -10%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%),
@@ -176,7 +176,7 @@ html[data-photo="frame"] .pm-photo { border: 4px solid var(--primary); backgroun
 .filter-sub { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
 /* ----- lateral mais charmosa ----- */
 .sidebar { position: sticky; border-radius: 22px; padding: 18px 14px 14px; overflow-x: hidden;
-  background: linear-gradient(180deg, #fff 0%, color-mix(in srgb, var(--primary) 3%, #fff) 100%);
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--primary) 3%, var(--surface)) 100%);
   border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--border-soft));
   box-shadow: 0 18px 40px -26px color-mix(in srgb, var(--primary) 45%, rgba(20, 20, 43, .3)), 0 1px 2px rgba(20, 20, 43, .04); }
 .sidebar::before { content: ""; display: block; margin: -18px -14px 14px; height: 5px;
@@ -184,22 +184,22 @@ html[data-photo="frame"] .pm-photo { border: 4px solid var(--primary); backgroun
 .sidebar-body { display: block; }
 .side-sec { padding: 0; }
 .side-sec + .side-sec { margin-top: 12px; padding-top: 12px; }
-.side-head { padding: 9px 10px; border-radius: 14px; background: color-mix(in srgb, var(--primary) 5%, #fff); border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border-soft)); transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
-.side-head:hover { background: color-mix(in srgb, var(--primary) 10%, #fff); border-color: color-mix(in srgb, var(--primary) 28%, var(--border)); }
-.side-head[aria-expanded="true"] { background: color-mix(in srgb, var(--primary) 9%, #fff); box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--primary) 60%, transparent); }
+.side-head { padding: 9px 10px; border-radius: 14px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border-soft)); transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
+.side-head:hover { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 28%, var(--border)); }
+.side-head[aria-expanded="true"] { background: color-mix(in srgb, var(--primary) 9%, var(--surface)); box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--primary) 60%, transparent); }
 .side-ico { width: 32px; height: 32px; border-radius: 11px; color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--primary) 75%, transparent); }
 .side-title { font-size: 12.5px; letter-spacing: .9px; }
 .side-body { padding: 12px 4px 4px; }
 .filter-title { font-size: 11px; letter-spacing: .8px; color: var(--text-muted); margin: 14px 2px 8px; }
 .filter-title:first-child { margin-top: 2px; }
 .size-grid { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; padding: 0 2px; max-height: 230px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.size-grid .size-pill { padding: 7px 0; font-size: 12px; border-radius: 10px; background: #fff; border: 1px solid var(--border); }
+.size-grid .size-pill { padding: 7px 0; font-size: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
 .size-grid .size-pill:hover:not(:disabled) { border-color: var(--primary); color: var(--primary-dark); box-shadow: 0 6px 12px -8px color-mix(in srgb, var(--primary) 70%, transparent); }
 .size-grid .size-pill.active { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; border-color: transparent; }
-.chip { background: #fff; border: 1px solid var(--border); }
+.chip { background: var(--surface); border: 1px solid var(--border); }
 .group-item { border-radius: 12px; padding: 9px 10px 9px 16px; font-weight: 500; }
 .group-item:first-child { font-weight: 700; }
-.sidebar-search { background: #fff; border: 1px solid var(--border); }
+.sidebar-search { background: var(--surface); border: 1px solid var(--border); }
 .group-list.scroll { max-height: 290px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .sidebar-tabs { display: flex; background: var(--bg); padding: 4px; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--border-soft); gap: 4px; }
 .sidebar-tab {
@@ -253,7 +253,7 @@ html[data-photo="frame"] .pm-photo { border: 4px solid var(--primary); backgroun
   border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border-soft)); border-radius: var(--radius-lg);
   box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--primary) 20%, transparent); animation: cardIn .3s var(--ease);
 }
-.brand-banner-mono { width: 52px; height: 52px; border-radius: 14px; background: #fff; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: var(--primary); flex-shrink: 0; }
+.brand-banner-mono { width: 52px; height: 52px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: var(--primary); flex-shrink: 0; }
 .brand-banner-info { flex: 1; min-width: 0; }
 .brand-banner-badge { display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--primary-dark); background: color-mix(in srgb, var(--primary) 12%, transparent); padding: 2px 8px; border-radius: 999px; margin-bottom: 4px; }
 .brand-banner-name { margin: 0 0 2px; font-size: 20px; font-weight: 800; letter-spacing: -.3px; }

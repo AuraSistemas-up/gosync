@@ -1,6 +1,7 @@
 import type { Product } from "../types/product";
 import { categoryName, cmpSize } from "../lib/catalog";
 import Photo from "./Photo";
+import { favorites, useFavorites } from "../lib/favorites";
 
 export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function ProductCard({ product, size, onOpen }: Props) {
+  const fav = useFavorites().some((x) => x.id === product.id);
   const withSize = size ? product.variants.filter((v) => v.sizes.some((s) => s.size === size && s.stock > 0)) : product.variants;
   const v = withSize[0] ?? product.variants[0];
 
@@ -38,6 +40,19 @@ export default function ProductCard({ product, size, onOpen }: Props) {
       <div class="card-photo">
         {v.image ? <Photo src={v.image} alt={`${product.name} ${v.color}`} mode="card" /> : <span class="no-photo">Sem foto</span>}
         {discount > 0 && <span class="badge-off">-{discount}%</span>}
+        <button
+          type="button"
+          class={`heart${fav ? " on" : ""}`}
+          aria-pressed={fav}
+          aria-label={fav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            favorites.toggle(product.id, v.colorSlug, size && v.sizes.some((s) => s.size === size && s.available) ? size : undefined);
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 5.8-8 11-8 11z" /></svg>
+        </button>
       </div>
       <div class="card-body">
         <div style="display:flex;gap:6px;flex-wrap:wrap">

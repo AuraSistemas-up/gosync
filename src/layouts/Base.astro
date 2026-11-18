@@ -1,6 +1,10 @@
 ---
+import "@fontsource-variable/inter"; // fonte própria, hospedada no site (sem chamadas externas)
 import "../styles/global.css";
+import "../styles/extras.css";
 import SiteHeader from "../components/SiteHeader.tsx";
+import Footer from "../components/Footer.tsx";
+import GlobalUI from "../components/GlobalUI.tsx";
 interface Props { title: string }
 const { title } = Astro.props;
 ---
@@ -10,9 +14,15 @@ const { title } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <!-- Aplica o tema escolhido antes de pintar a página (evita piscar claro→escuro) -->
+    <script is:inline>
+      try { if (localStorage.getItem("gosync:tema") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) {}
+    </script>
   </head>
   <body>
     <SiteHeader client:only="preact" />
     <slot />
+    <Footer client:only="preact" />
+    <GlobalUI client:only="preact" />
   </body>
 </html>

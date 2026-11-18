@@ -43,6 +43,7 @@ export interface CatalogFile {
     message?: string; // modelo da mensagem do WhatsApp ({produto}, {sku}, {cor}, {numeracao}, {valor}, {link})
     hero?: { enabled?: boolean; title?: string; subtitle?: string }; // faixa da marca no topo
     photoStyle?: "classic" | "spotlight" | "frame"; // destaque das fotos
+    footer?: { about?: string; address?: string; hours?: string; phone?: string; instagram?: string }; // rodapé (painel admin)
   };
   products: Product[];
 }

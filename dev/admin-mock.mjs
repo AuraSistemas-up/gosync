@@ -14,10 +14,10 @@ export function adminMock() {
   const pub = path.resolve("public");
   const CONFIG = path.join(pub, "data", "config.json");
   const load = () => {
-    const base = { name: "", primaryColor: "", logo: "", banners: [], whatsapp: "", message: "", hero: { enabled: true, title: "", subtitle: "" }, photoStyle: "spotlight" };
+    const base = { name: "", primaryColor: "", logo: "", banners: [], whatsapp: "", message: "", hero: { enabled: true, title: "", subtitle: "" }, photoStyle: "spotlight", footer: { about: "", address: "", hours: "", phone: "", instagram: "" } };
     try {
       const c = JSON.parse(fs.readFileSync(CONFIG, "utf8"));
-      return { ...base, ...c, banners: Array.isArray(c.banners) ? c.banners : [], hero: { ...base.hero, ...(c.hero || {}) } };
+      return { ...base, ...c, banners: Array.isArray(c.banners) ? c.banners : [], hero: { ...base.hero, ...(c.hero || {}) }, footer: { ...base.footer, ...(c.footer || {}) } };
     } catch { return base; }
   };
   const readBody = (req) => new Promise((res) => { const ch = []; req.on("data", (c) => ch.push(c)); req.on("end", () => res(Buffer.concat(ch))); });
@@ -77,6 +77,12 @@ export function adminMock() {
               whatsapp: wa, message: String(d.message || "").replace(/\r/g, "").slice(0, 1000),
               hero: { enabled: !!h.enabled, title: String(h.title || "").slice(0, 60), subtitle: String(h.subtitle || "").slice(0, 140) },
               photoStyle: d.photoStyle || "spotlight", updatedAt: new Date().toISOString(),
+              footer: (() => {
+                const f = d.footer || {};
+                const ig = String(f.instagram || "").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/[/?].*$/, "").replace(/^@/, "");
+                const cl = (v, n) => String(v || "").replace(/\r/g, "").trim().slice(0, n);
+                return { about: cl(f.about, 300), address: cl(f.address, 200), hours: cl(f.hours, 200), phone: cl(f.phone, 30), instagram: /^[A-Za-z0-9._]{0,30}$/.test(ig) ? ig : "" };
+              })(),
             }));
             return send({ ok: true, config: load() });
           }

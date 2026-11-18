@@ -100,6 +100,13 @@ function load_config()
             'subtitle' => isset($c['hero']['subtitle']) ? (string)$c['hero']['subtitle'] : '',
         ),
         'photoStyle' => isset($c['photoStyle']) ? (string)$c['photoStyle'] : 'spotlight',
+        'footer' => array(
+            'about' => isset($c['footer']['about']) ? (string)$c['footer']['about'] : '',
+            'address' => isset($c['footer']['address']) ? (string)$c['footer']['address'] : '',
+            'hours' => isset($c['footer']['hours']) ? (string)$c['footer']['hours'] : '',
+            'phone' => isset($c['footer']['phone']) ? (string)$c['footer']['phone'] : '',
+            'instagram' => isset($c['footer']['instagram']) ? (string)$c['footer']['instagram'] : '',
+        ),
     );
 }
 
@@ -257,7 +264,27 @@ switch ($a) {
         if (!in_array($photoStyle, array('classic', 'spotlight', 'frame'), true)) {
             fail('Estilo de foto inválido.');
         }
+        // Rodapé: textos curtos; Instagram só o @usuário (aceita colar o link completo).
+        $ft = isset($d['footer']) && is_array($d['footer']) ? $d['footer'] : array();
+        $clip = function ($v, $max) {
+            $v = trim(str_replace("\r", '', (string)$v));
+            return function_exists('mb_substr') ? mb_substr($v, 0, $max, 'UTF-8') : substr($v, 0, $max);
+        };
+        $ig = trim(isset($ft['instagram']) ? (string)$ft['instagram'] : '');
+        $ig = preg_replace('#^https?://(www\.)?instagram\.com/#i', '', $ig);
+        $ig = ltrim(preg_replace('#[/?].*$#', '', $ig), '@');
+        if ($ig !== '' && !preg_match('/^[A-Za-z0-9._]{1,30}$/', $ig)) {
+            fail('Instagram inválido. Use só o @usuário (ex.: kuelhos_sapatos).');
+        }
+        $footer = array(
+            'about' => $clip(isset($ft['about']) ? $ft['about'] : '', 300),
+            'address' => $clip(isset($ft['address']) ? $ft['address'] : '', 200),
+            'hours' => $clip(isset($ft['hours']) ? $ft['hours'] : '', 200),
+            'phone' => $clip(isset($ft['phone']) ? $ft['phone'] : '', 30),
+            'instagram' => $ig,
+        );
         $cfg = array(
+            'footer' => $footer,
             'name' => $name, 'primaryColor' => $color, 'logo' => $logo, 'banners' => $banners,
             'whatsapp' => $wa, 'message' => $message,
             'hero' => array('enabled' => !empty($hero['enabled']), 'title' => $heroTitle, 'subtitle' => $heroSub),
