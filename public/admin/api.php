@@ -13,9 +13,9 @@ header('X-Robots-Tag: noindex, nofollow');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const DEFAULT_USER = 'kuelhos';
+const DEFAULT_USER = 'admin';
 // bcrypt da senha inicial (a senha em si não fica no código). Troque pelo painel: Segurança.
-const DEFAULT_HASH = '$2b$10$WAQyFOLWLvabAHhjqi5cFuOWuV4gRxZNWXiLBX8exn77jkmrUwyKC';
+const DEFAULT_HASH = '$2b$10$lf0cds1rHd5ZJp5/yL3axer1OvsLoqmJwBe1P4qd5em7yLmDMJiE2';
 const MAX_BANNERS = 6;
 const MAX_UPLOAD = 6291456; // 6 MB
 

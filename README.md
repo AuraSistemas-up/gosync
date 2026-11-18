@@ -19,7 +19,7 @@ Em *Configurações → Dados do ERP* escolha **Banco de dados Firebird** (padr�
 
 ## Painel admin (`/admin`)
 Em `https://seusite.com.br/admin/`: logo, cor, nome da loja e banners do carrossel (até 6, 1600 × 500 px).
-- Usuário inicial: `kuelhos`. **Troque a senha** na seção *Segurança* do painel no primeiro acesso.
+- Usuário inicial: `admin` (senha inicial `admin123`). **Troque a senha** na seção *Segurança* do painel no primeiro acesso.
 - Roda em PHP 7+ na própria hospedagem (`public/admin/api.php`); grava em `data/config.json`, `banners/` e `logo/`.
 - O painel tem prioridade sobre o nome/cor/banners configurados no GoSync.
 - Se algo falhar no servidor, abra `/admin/api.php?a=ping` (mostra a versão do PHP e se as pastas são graváveis).

@@ -5,8 +5,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 
-const DEFAULT_USER = "kuelhos";
-const DEFAULT_HASH = "$2b$10$WAQyFOLWLvabAHhjqi5cFuOWuV4gRxZNWXiLBX8exn77jkmrUwyKC"; // mesmo hash do api.php
+const DEFAULT_USER = "admin";
+const DEFAULT_HASH = "$2b$10$lf0cds1rHd5ZJp5/yL3axer1OvsLoqmJwBe1P4qd5em7yLmDMJiE2"; // mesmo hash do api.php
 const MAX_BANNERS = 6;
 
 export function adminMock() {

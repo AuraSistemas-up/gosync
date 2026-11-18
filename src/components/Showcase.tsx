@@ -13,7 +13,8 @@ interface Props {
 /** Faixa horizontal de produtos (Destaques, Mais vendidos, Chegou agora), com setas e rolagem por toque. */
 export default function Showcase({ title, tag, products, size, onOpen }: Props) {
   const row = useRef<HTMLDivElement>(null);
-  const scroll = (dir: number) => row.current?.scrollBy({ left: dir * 520, behavior: "smooth" });
+  // Rola uma "página" inteira (a largura visível), então os cards sempre chegam inteiros.
+  const scroll = (dir: number) => row.current?.scrollBy({ left: dir * (row.current.clientWidth + 16), behavior: "smooth" });
   return (
     <section class="showcase" aria-label={title}>
       <div class="showcase-head">

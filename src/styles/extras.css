@@ -152,8 +152,12 @@ html[data-theme="dark"] .banners, html[data-theme="dark"] .sort-select, html[dat
 .showcase-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
 .showcase-head h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
 .showcase-head .tag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; padding: 3px 10px; border-radius: 999px; color: var(--primary-dark); background: color-mix(in srgb, var(--primary) 12%, transparent); }
-.showcase-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 240px); gap: 16px; overflow-x: auto; padding: 4px 2px 14px; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.showcase-row > .card { scroll-snap-align: start; }
+/* Cada "página" mostra um número exato de cards (4 no computador, 3 no tablet, 2 no celular): nunca aparece um card cortado na ponta. */
+.showcase-row { --gap: 16px; --per: 4; display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--gap) * (var(--per) - 1)) / var(--per)); gap: var(--gap); overflow-x: auto; padding: 16px 0 22px; margin: -12px 0 -8px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.showcase-row::-webkit-scrollbar { display: none; }
+.showcase-row > .card { scroll-snap-align: start; min-width: 0; }
+@media (max-width: 1100px) { .showcase-row { --per: 3; } }
+@media (max-width: 700px) { .showcase-row { --per: 2; --gap: 12px; } }
 .showcase-arrows { display: flex; gap: 6px; }
 .showcase-arrows button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 18px; line-height: 1; }
 .showcase-arrows button:hover { border-color: var(--primary); color: var(--primary); }
