@@ -19,5 +19,5 @@ export default function ProductPage() {
     );
 
   if (typeof document !== "undefined") document.title = `${product.name} | ${s.data.store?.name ?? "Sapataria"}`;
-  return <ProductDetail product={product} whatsapp={s.data.whatsapp} initialColor={color} />;
+  return <ProductDetail product={product} whatsapp={s.data.whatsapp} messageTemplate={s.data.store?.message} initialColor={color} initialSize={q.get("tam")} />;
 }

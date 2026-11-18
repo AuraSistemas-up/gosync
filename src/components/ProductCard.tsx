@@ -1,5 +1,6 @@
 import type { Product } from "../types/product";
 import { categoryName, cmpSize } from "../lib/catalog";
+import Photo from "./Photo";
 
 export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -35,7 +36,7 @@ export default function ProductCard({ product, size, onOpen }: Props) {
       }}
     >
       <div class="card-photo">
-        {v.image ? <img src={v.image} alt={`${product.name} ${v.color}`} loading="lazy" /> : <span class="no-photo">Sem foto</span>}
+        {v.image ? <Photo src={v.image} alt={`${product.name} ${v.color}`} mode="card" /> : <span class="no-photo">Sem foto</span>}
         {discount > 0 && <span class="badge-off">-{discount}%</span>}
       </div>
       <div class="card-body">

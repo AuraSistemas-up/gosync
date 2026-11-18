@@ -14,8 +14,11 @@ export function adminMock() {
   const pub = path.resolve("public");
   const CONFIG = path.join(pub, "data", "config.json");
   const load = () => {
-    try { const c = JSON.parse(fs.readFileSync(CONFIG, "utf8")); return { name: c.name ?? "", primaryColor: c.primaryColor ?? "", logo: c.logo ?? "", banners: Array.isArray(c.banners) ? c.banners : [] }; }
-    catch { return { name: "", primaryColor: "", logo: "", banners: [] }; }
+    const base = { name: "", primaryColor: "", logo: "", banners: [], whatsapp: "", message: "", hero: { enabled: true, title: "", subtitle: "" }, photoStyle: "spotlight" };
+    try {
+      const c = JSON.parse(fs.readFileSync(CONFIG, "utf8"));
+      return { ...base, ...c, banners: Array.isArray(c.banners) ? c.banners : [], hero: { ...base.hero, ...(c.hero || {}) } };
+    } catch { return base; }
   };
   const readBody = (req) => new Promise((res) => { const ch = []; req.on("data", (c) => ch.push(c)); req.on("end", () => res(Buffer.concat(ch))); });
 
@@ -65,7 +68,16 @@ export function adminMock() {
               banners.push({ image: b.image, link: (b.link || "").trim() });
             }
             fs.mkdirSync(path.dirname(CONFIG), { recursive: true });
-            fs.writeFileSync(CONFIG, JSON.stringify({ name: String(d.name || "").slice(0, 60), primaryColor: d.primaryColor || "", logo: d.logo || "", banners, updatedAt: new Date().toISOString() }));
+            const wa = String(d.whatsapp || "").replace(/\D/g, "");
+            if (wa && (wa.length < 10 || wa.length > 15)) return send({ ok: false, error: "WhatsApp inválido. Use DDI + DDD + número (ex.: 5511999998888)." }, 400);
+            if (!["classic", "spotlight", "frame"].includes(d.photoStyle || "spotlight")) return send({ ok: false, error: "Estilo de foto inválido." }, 400);
+            const h = d.hero || {};
+            fs.writeFileSync(CONFIG, JSON.stringify({
+              name: String(d.name || "").slice(0, 60), primaryColor: d.primaryColor || "", logo: d.logo || "", banners,
+              whatsapp: wa, message: String(d.message || "").replace(/\r/g, "").slice(0, 1000),
+              hero: { enabled: !!h.enabled, title: String(h.title || "").slice(0, 60), subtitle: String(h.subtitle || "").slice(0, 140) },
+              photoStyle: d.photoStyle || "spotlight", updatedAt: new Date().toISOString(),
+            }));
             return send({ ok: true, config: load() });
           }
           case "upload": {

@@ -4,6 +4,40 @@ export interface Banner { image: string; link?: string; alt?: string }
 
 const SLIDE_MS = 5000;
 const PLACEHOLDERS = [1, 2, 3, 4];
+const RATIO = 16 / 5; // proporção do carrossel (1600 × 500)
+const TOLERANCE = 0.18; // imagens até 18% diferentes da proporção ideal preenchem o banner (cover)
+
+/**
+ * Imagem do banner com ajuste automático:
+ * - proporção parecida com 1600×500 → preenche todo o banner (cover);
+ * - proporção bem diferente (quadrada, vertical…) → aparece INTEIRA (contain) sobre um fundo desfocado dela mesma.
+ */
+function Slide({ b, n, active }: { b: Banner; n: number; active: boolean }) {
+  const [fit, setFit] = useState<"cover" | "contain">("cover");
+  const img = (
+    <>
+      <div class="banner-bg" style={{ backgroundImage: `url("${b.image}")` }} aria-hidden="true" />
+      <img
+        src={b.image}
+        alt={b.alt ?? `Destaque ${n + 1}`}
+        loading={n === 0 ? "eager" : "lazy"}
+        decoding="async"
+        class={`banner-img ${fit}`}
+        onLoad={(e) => {
+          const el = e.currentTarget as HTMLImageElement;
+          if (!el.naturalWidth || !el.naturalHeight) return;
+          const diff = Math.abs(el.naturalWidth / el.naturalHeight / RATIO - 1);
+          setFit(diff <= TOLERANCE ? "cover" : "contain");
+        }}
+      />
+    </>
+  );
+  return (
+    <div class="banner-slide" aria-hidden={!active}>
+      {b.link ? <a href={b.link} tabIndex={active ? 0 : -1}>{img}</a> : img}
+    </div>
+  );
+}
 
 /** Carrossel de banners de propaganda (gira sozinho; pausa ao passar o mouse). Sem banners cadastrados, mostra 4 espaços reservados. */
 export default function Banners({ banners }: { banners?: Banner[] }) {
@@ -26,19 +60,12 @@ export default function Banners({ banners }: { banners?: Banner[] }) {
       onFocusIn={() => setPaused(true)} onFocusOut={() => setPaused(false)}>
       <div class="banners-track" style={{ transform: `translateX(-${i * 100}%)` }}>
         {real.length
-          ? real.map((b, n) => {
-              const img = <img src={b.image} alt={b.alt ?? `Destaque ${n + 1}`} loading={n === 0 ? "eager" : "lazy"} />;
-              return (
-                <div class="banner-slide" key={b.image} aria-hidden={n !== i}>
-                  {b.link ? <a href={b.link} tabIndex={n === i ? 0 : -1}>{img}</a> : img}
-                </div>
-              );
-            })
+          ? real.map((b, n) => <Slide key={b.image} b={b} n={n} active={n === i} />)
           : PLACEHOLDERS.map((n) => (
               <div class="banner-slide banner-placeholder" key={n} aria-hidden={n - 1 !== i}>
                 <div>
                   <strong>Espaço para banner {n}</strong>
-                  <span>Tamanho sugerido: 1600 × 500 px</span>
+                  <span>Qualquer tamanho funciona; ideal: 1600 × 500 px</span>
                 </div>
               </div>
             ))}

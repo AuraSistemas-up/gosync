@@ -5,13 +5,14 @@ import ProductDetail from "./ProductDetail";
 interface Props {
   product: Product;
   whatsapp: string;
+  messageTemplate?: string;
   color?: string;
   size: string | null;
   onClose: () => void;
 }
 
 /** Pop-up com foto e informações do produto; fecha com Esc, clique fora ou no ×. */
-export default function ProductModal({ product, whatsapp, color, size, onClose }: Props) {
+export default function ProductModal({ product, whatsapp, messageTemplate, color, size, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -27,7 +28,7 @@ export default function ProductModal({ product, whatsapp, color, size, onClose }
     <div class="modal-overlay" role="dialog" aria-modal="true" aria-label={product.name} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div class="modal">
         <button type="button" class="modal-close" aria-label="Fechar" onClick={onClose}>×</button>
-        <ProductDetail key={product.id} product={product} whatsapp={whatsapp} initialColor={color} initialSize={size} />
+        <ProductDetail key={product.id} product={product} whatsapp={whatsapp} messageTemplate={messageTemplate} initialColor={color} initialSize={size} />
       </div>
     </div>
   );

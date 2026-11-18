@@ -1,11 +1,13 @@
 import { useState } from "preact/hooks";
 import type { Product } from "../types/product";
-import { categoryName } from "../lib/catalog";
+import { buildWhatsMessage, categoryName } from "../lib/catalog";
 import { brl } from "./ProductCard";
+import Photo from "./Photo";
 
 interface Props {
   product: Product;
   whatsapp: string; // só dígitos, com DDI (ex.: 5511999998888)
+  messageTemplate?: string; // modelo configurado no painel (usa a mensagem padrão se vazio)
   initialColor?: string;
   initialSize?: string | null;
 }
@@ -16,7 +18,7 @@ const WaIcon = () => (
   </svg>
 );
 
-export default function ProductDetail({ product, whatsapp, initialColor, initialSize }: Props) {
+export default function ProductDetail({ product, whatsapp, messageTemplate, initialColor, initialSize }: Props) {
   const start = Math.max(0, product.variants.findIndex((v) => v.colorSlug === initialColor));
   const startSize = initialSize && product.variants[start].sizes.some((s) => s.size === initialSize && s.available) ? initialSize : null;
   const photosOf = (i: number) => {
@@ -51,15 +53,19 @@ export default function ProductDetail({ product, whatsapp, initialColor, initial
     setPhoto(photoFor(vIdx, s)); // troca para a foto da variação escolhida
   };
 
+  // Link direto para o produto (já com cor e numeração), enviado na mensagem do WhatsApp.
+  const link = selected
+    ? `${location.origin}/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}&tam=${encodeURIComponent(selected.size)}`
+    : "";
   const message = selected
-    ? [
-        "Olá! Quero pedir este calçado:",
-        `*Modelo:* ${product.name}`,
-        `*Ref/SKU:* ${selected.sku}`,
-        ...(v.color !== "Único" ? [`*Cor:* ${v.color}`] : []),
-        `*Numeração:* ${selected.size}`,
-        `*Valor:* ${brl(price)}`,
-      ].join("\n")
+    ? buildWhatsMessage(messageTemplate, {
+        produto: product.name,
+        sku: selected.sku,
+        cor: v.color !== "Único" ? v.color : "",
+        numeracao: selected.size,
+        valor: brl(price),
+        link,
+      })
     : "";
   const href = selected && whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}` : undefined;
   const ctaText = !whatsapp ? "WhatsApp não configurado" : selected ? "Pedir pelo WhatsApp" : "Escolha a numeração";
@@ -74,7 +80,7 @@ export default function ProductDetail({ product, whatsapp, initialColor, initial
           <div class="pm-thumbs">
             {photos.map((src, i) => (
               <button key={src} type="button" class={`pm-thumb${i === photo ? " active" : ""}`} onClick={() => setPhoto(i)} aria-label={`Foto ${i + 1}`}>
-                <img src={src} alt="" loading="lazy" />
+                <Photo src={src} alt="" mode="tiny" />
               </button>
             ))}
           </div>
@@ -104,7 +110,7 @@ export default function ProductDetail({ product, whatsapp, initialColor, initial
             <div class="pm-chip-list">
               {product.variants.map((x, i) => (
                 <button key={x.colorSlug} type="button" class={`pm-chip${i === vIdx ? " active" : ""}`} aria-pressed={i === vIdx} onClick={() => pickColor(i)}>
-                  <span class="pm-swatch">{x.image && <img src={x.image} alt="" />}</span>
+                  <span class="pm-swatch">{x.image && <Photo src={x.image} alt="" mode="tiny" />}</span>
                   {x.color}
                 </button>
               ))}

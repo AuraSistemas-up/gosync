@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const ftp = require("basic-ftp");
-const { app } = require("electron");
+const { app, nativeImage } = require("electron");
 const { fetchRaw, groupProducts } = require("./erp");
 
 const EXT = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" };
@@ -51,10 +51,32 @@ async function fetchPhoto(url, cfg) {
     buf = Buffer.from(await res.arrayBuffer());
   }
   const ext = EXT[type] || path.extname(new URL(url.startsWith("data:") ? "http://x/x.jpg" : url).pathname).toLowerCase() || ".jpg";
-  const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + ext;
+  // Redimensionamento automático: foto grande (máx. 1200 px) + miniatura (520 px) com boa qualidade.
+  // PNG continua PNG (preserva transparência); o resto vira JPEG 85. Se não der para decodificar, mantém o original.
+  let out = buf, outExt = ext, thumb = null;
+  try {
+    const img = nativeImage.createFromBuffer(buf);
+    if (!img.isEmpty()) {
+      const { width, height } = img.getSize();
+      // Reduz fotos grandes; amplia as pequenas (< 700 px) para 800 px, para não ficarem borradas no pop-up.
+      const fit = (max, enlarge) => {
+        const longest = Math.max(width, height);
+        const target = enlarge && longest < 700 ? 800 : Math.min(max, longest);
+        const s = target / longest;
+        return s === 1 ? img : img.resize({ width: Math.max(1, Math.round(width * s)), height: Math.max(1, Math.round(height * s)), quality: "best" });
+      };
+      const png = ext === ".png";
+      const enc = (i, q) => (png ? i.toPNG() : i.toJPEG(q));
+      out = enc(fit(1200, true), 88);
+      thumb = enc(fit(520, false), 80);
+      outExt = png ? ".png" : ".jpg";
+    }
+  } catch { /* usa o original */ }
+  const name = crypto.createHash("sha1").update(out).digest("hex").slice(0, 16) + outExt;
   fs.mkdirSync(dirs().photos, { recursive: true });
   const file = path.join(dirs().photos, name);
-  if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
+  if (!fs.existsSync(file)) fs.writeFileSync(file, out);
+  if (thumb) fs.writeFileSync(file.replace(/(\.\w+)$/, "-s$1"), thumb);
   return name;
 }
 
@@ -108,8 +130,25 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
     const files = fs.readdirSync(cfg.bannersDir).filter((f) => /\.(jpe?g|png|webp)$/i.test(f)).sort().slice(0, 6);
     for (const f of files) {
       const file = path.join(cfg.bannersDir, f);
-      const name = crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex").slice(0, 16) + path.extname(f).toLowerCase();
-      bannerFiles.push({ name, file });
+      // Redimensiona automaticamente (máx. 1920 px de largura, boa qualidade); o site ajusta a proporção sozinho.
+      const raw = fs.readFileSync(file);
+      let data = raw, bext = path.extname(f).toLowerCase();
+      try {
+        const img = nativeImage.createFromBuffer(raw);
+        if (!img.isEmpty()) {
+          const { width, height } = img.getSize();
+          const s = Math.min(1, 1920 / width);
+          const r = s < 1 ? img.resize({ width: Math.round(width * s), height: Math.max(1, Math.round(height * s)), quality: "best" }) : img;
+          if (bext === ".png") data = r.toPNG();
+          else { data = r.toJPEG(88); bext = ".jpg"; }
+        }
+      } catch { /* mantém o original */ }
+      const name = crypto.createHash("sha1").update(data).digest("hex").slice(0, 16) + bext;
+      const bdir = path.join(dirs().out, "banners");
+      fs.mkdirSync(bdir, { recursive: true });
+      const outFile = path.join(bdir, name);
+      if (!fs.existsSync(outFile)) fs.writeFileSync(outFile, data);
+      bannerFiles.push({ name, file: outFile });
       banners.push({ image: `/banners/${name}` });
     }
   }
@@ -142,6 +181,8 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
       await client.ensureDir(posix.join(root, "fotos"));
       for (const n of pendentes) {
         await client.uploadFrom(path.join(dirs().photos, n), posix.join(root, "fotos", n));
+        const t = n.replace(/(\.\w+)$/, "-s$1"); // miniatura, se existir
+        if (fs.existsSync(path.join(dirs().photos, t))) await client.uploadFrom(path.join(dirs().photos, t), posix.join(root, "fotos", t));
         state.uploaded[n] = true;
       }
     }

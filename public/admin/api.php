@@ -92,6 +92,14 @@ function load_config()
         'primaryColor' => isset($c['primaryColor']) ? (string)$c['primaryColor'] : '',
         'logo' => isset($c['logo']) ? (string)$c['logo'] : '',
         'banners' => isset($c['banners']) && is_array($c['banners']) ? array_values($c['banners']) : array(),
+        'whatsapp' => isset($c['whatsapp']) ? (string)$c['whatsapp'] : '',
+        'message' => isset($c['message']) ? (string)$c['message'] : '',
+        'hero' => array(
+            'enabled' => isset($c['hero']['enabled']) ? (bool)$c['hero']['enabled'] : true,
+            'title' => isset($c['hero']['title']) ? (string)$c['hero']['title'] : '',
+            'subtitle' => isset($c['hero']['subtitle']) ? (string)$c['hero']['subtitle'] : '',
+        ),
+        'photoStyle' => isset($c['photoStyle']) ? (string)$c['photoStyle'] : 'spotlight',
     );
 }
 
@@ -229,7 +237,33 @@ switch ($a) {
             }
             $banners[] = array('image' => $img, 'link' => $link);
         }
-        $cfg = array('name' => $name, 'primaryColor' => $color, 'logo' => $logo, 'banners' => $banners, 'updatedAt' => gmdate('c'));
+        // WhatsApp: só dígitos com DDI (10 a 15) ou vazio.
+        $wa = preg_replace('/\D/', '', isset($d['whatsapp']) ? (string)$d['whatsapp'] : '');
+        if ($wa !== '' && (strlen($wa) < 10 || strlen($wa) > 15)) {
+            fail('WhatsApp inválido. Use DDI + DDD + número (ex.: 5511999998888).');
+        }
+        $message = isset($d['message']) ? str_replace("\r", '', (string)$d['message']) : '';
+        if (function_exists('mb_substr')) {
+            $message = mb_substr($message, 0, 1000, 'UTF-8');
+        }
+        $hero = isset($d['hero']) && is_array($d['hero']) ? $d['hero'] : array();
+        $heroTitle = trim(isset($hero['title']) ? (string)$hero['title'] : '');
+        $heroSub = trim(isset($hero['subtitle']) ? (string)$hero['subtitle'] : '');
+        if (function_exists('mb_substr')) {
+            $heroTitle = mb_substr($heroTitle, 0, 60, 'UTF-8');
+            $heroSub = mb_substr($heroSub, 0, 140, 'UTF-8');
+        }
+        $photoStyle = isset($d['photoStyle']) ? (string)$d['photoStyle'] : 'spotlight';
+        if (!in_array($photoStyle, array('classic', 'spotlight', 'frame'), true)) {
+            fail('Estilo de foto inválido.');
+        }
+        $cfg = array(
+            'name' => $name, 'primaryColor' => $color, 'logo' => $logo, 'banners' => $banners,
+            'whatsapp' => $wa, 'message' => $message,
+            'hero' => array('enabled' => !empty($hero['enabled']), 'title' => $heroTitle, 'subtitle' => $heroSub),
+            'photoStyle' => $photoStyle,
+            'updatedAt' => gmdate('c'),
+        );
         if (!is_dir($DIRS['data'])) {
             @mkdir($DIRS['data'], 0755, true);
         }

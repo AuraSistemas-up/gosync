@@ -9,8 +9,41 @@ export type CatalogState =
 // Uma única requisição por página, compartilhada entre cabeçalho, catálogo e produto.
 let pending: Promise<CatalogFile> | null = null;
 
-/** Configurações do painel admin (/data/config.json): nome, cor, logo e banners. Opcional. */
-async function loadConfig(): Promise<{ name?: string; primaryColor?: string; logo?: string; banners?: { image: string; link?: string }[] } | null> {
+/** Mensagem padrão do WhatsApp (já com o link do produto). Placeholders: {produto} {sku} {cor} {numeracao} {valor} {link}. */
+export const DEFAULT_MESSAGE =
+  "Olá! Quero pedir este calçado:\n*Modelo:* {produto}\n*Ref/SKU:* {sku}\n*Cor:* {cor}\n*Numeração:* {numeracao}\n*Valor:* {valor}\n*Link:* {link}";
+
+/** Preenche o modelo. Linhas cujo valor ficou vazio (ex.: produto sem cor) são omitidas. */
+export function buildWhatsMessage(template: string | undefined, vars: Record<string, string>): string {
+  const tpl = (template && template.trim()) || DEFAULT_MESSAGE;
+  return tpl
+    .split("\n")
+    .map((line) => {
+      let empty = false;
+      const out = line.replace(/\{(\w+)\}/g, (_, k) => {
+        const v = vars[k] ?? "";
+        if (!v) empty = true;
+        return v;
+      });
+      return empty ? null : out;
+    })
+    .filter((l): l is string => l !== null)
+    .join("\n");
+}
+
+type Cfg = {
+  name?: string;
+  primaryColor?: string;
+  logo?: string;
+  banners?: { image: string; link?: string }[];
+  whatsapp?: string;
+  message?: string;
+  hero?: { enabled?: boolean; title?: string; subtitle?: string };
+  photoStyle?: "classic" | "spotlight" | "frame";
+};
+
+/** Configurações do painel admin (/data/config.json). Opcional. */
+async function loadConfig(): Promise<Cfg | null> {
   try {
     const r = await fetch("/data/config.json", { cache: "no-cache" });
     return r.ok ? await r.json() : null;
@@ -35,6 +68,10 @@ function load(): Promise<CatalogFile> {
         if (cfg.primaryColor) s.primaryColor = cfg.primaryColor;
         if (cfg.logo) s.logo = cfg.logo;
         if (cfg.banners?.length) s.banners = cfg.banners;
+        if (cfg.message) s.message = cfg.message;
+        if (cfg.hero) s.hero = cfg.hero;
+        if (cfg.photoStyle) s.photoStyle = cfg.photoStyle;
+        if (cfg.whatsapp) data.whatsapp = cfg.whatsapp.replace(/\D/g, "");
         data.store = s;
       }
       return data;
@@ -48,7 +85,8 @@ function load(): Promise<CatalogFile> {
 
 /** Aplica a cor principal e o nome da loja definidos no GoSync (tema por variável CSS). */
 function applyTheme(data: CatalogFile) {
-  const { name, primaryColor, logo } = data.store ?? {};
+  const { name, primaryColor, logo, photoStyle } = data.store ?? {};
+  document.documentElement.dataset.photo = photoStyle ?? "spotlight"; // estilo de destaque das fotos (CSS)
   if (primaryColor && /^#[0-9a-f]{6}$/i.test(primaryColor)) document.documentElement.style.setProperty("--primary", primaryColor);
   if (logo) {
     const img = document.getElementById("brandLogo") as HTMLImageElement | null;

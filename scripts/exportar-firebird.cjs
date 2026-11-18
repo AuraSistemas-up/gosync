@@ -128,10 +128,21 @@ const cmpSize = (a, b) => {
       await stream.close();
       const raw = Buffer.concat(chunks);
       if (raw.length > 100) {
-        const webp = await sharp(raw).rotate().resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+        const base = sharp(raw).rotate(); // respeita a orientação EXIF
+        // Fotos pequenas do ERP (< 700 px) são ampliadas (Lanczos + leve nitidez) para não ficarem borradas no pop-up.
+        const meta = await sharp(raw).rotate().metadata();
+        const longest = Math.max(meta.width || 0, meta.height || 0);
+        const small = longest > 0 && longest < 700;
+        const bigPipe = small
+          ? base.clone().resize({ width: 800, height: 800, fit: "inside", kernel: "lanczos3" }).sharpen({ sigma: 0.7 })
+          : base.clone().resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true });
+        const webp = await bigPipe.webp({ quality: 84, effort: 5 }).toBuffer();
         const name = crypto.createHash("sha1").update(webp).digest("hex").slice(0, 16) + ".webp";
         const file = path.join(fotosDir, name);
         if (!fs.existsSync(file)) { fs.writeFileSync(file, webp); photoCount++; }
+        // Miniatura (520 px) para os cards: carrega rápido e continua nítida em telas comuns.
+        const thumbFile = file.replace(/\.webp$/, "-s.webp");
+        if (!fs.existsSync(thumbFile)) fs.writeFileSync(thumbFile, await base.clone().resize({ width: 520, height: 520, fit: "inside", withoutEnlargement: true }).webp({ quality: 78, effort: 5 }).toBuffer());
         url = "/fotos/" + name;
       }
     } catch { photoFail++; }

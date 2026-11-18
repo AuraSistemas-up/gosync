@@ -69,7 +69,30 @@ function Pager({ page, pages, go }: { page: number; pages: number; go: (n: numbe
   );
 }
 
-export default function Catalog({ products, whatsapp = "", banners }: { products: Product[]; whatsapp?: string; banners?: Banner[] }) {
+const ICONS: Record<string, string> = {
+  filter: "M3 5h18l-7 8v6l-4-2v-4L3 5z",
+  groups: "M4 6h16M4 12h16M4 18h10",
+  brands: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z",
+};
+
+/** Seção recolhível da lateral, com ícone, contador de filtros ativos e divisor. */
+function Section({ title, icon, badge, open, onToggle, children }: { title: string; icon: string; badge?: number; open: boolean; onToggle: () => void; children: any }) {
+  return (
+    <section class="side-sec">
+      <button type="button" class="side-head" aria-expanded={open} onClick={onToggle}>
+        <span class="side-ico">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={ICONS[icon]} /></svg>
+        </span>
+        <span class="side-title">{title}</span>
+        {badge ? <span class="side-badge">{badge}</span> : null}
+        <span class={`side-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
+      </button>
+      {open && <div class="side-body">{children}</div>}
+    </section>
+  );
+}
+
+export default function Catalog({ products, whatsapp = "", message, banners }: { products: Product[]; whatsapp?: string; message?: string; banners?: Banner[] }) {
   const [f, setF] = useState<F>(() => readUrl());
   // Produto aberto no pop-up (também vai para a URL: ?p=<id>&c=<cor>).
   const [open, setOpen] = useState<{ id: string; color?: string } | null>(() => {
@@ -80,7 +103,8 @@ export default function Catalog({ products, whatsapp = "", banners }: { products
   const openProduct = open ? products.find((p) => p.id === open.id) : undefined;
   const [sort, setSort] = useState("relevance");
   const [page, setPage] = useState(1);
-  const [tab, setTab] = useState<"cat" | "brand" | "more">("cat");
+  const [sec, setSec] = useState({ filtros: false, grupos: true, marcas: true }); // seções abertas da lateral
+  const toggle = (k: keyof typeof sec) => setSec((s) => ({ ...s, [k]: !s[k] }));
   const [mobileOpen, setMobileOpen] = useState(false); // só afeta telas pequenas
   const [catQ, setCatQ] = useState("");
   const [brandQ, setBrandQ] = useState("");
@@ -139,52 +163,18 @@ export default function Catalog({ products, whatsapp = "", banners }: { products
 
   return (
     <div class="layout">
-      <aside class={`sidebar${mobileOpen ? " open" : ""}`} aria-label="Grupos e filtros">
+      <aside class={`sidebar${mobileOpen ? " open" : ""}`} aria-label="Filtros, grupos e marcas">
         <button type="button" class="sidebar-toggle" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}>
-          <span>☰ Grupos e filtros{active > 0 ? ` (${active})` : ""}</span><span>{mobileOpen ? "−" : "+"}</span>
+          <span>☰ Filtros, grupos e marcas{active > 0 ? ` (${active})` : ""}</span><span>{mobileOpen ? "−" : "+"}</span>
         </button>
         <div class="sidebar-body">
-        <div class="sidebar-tabs">
-          {([["cat", "Grupos"], ["brand", "Marcas"], ["more", "Filtros"]] as const).map(([id, name]) => (
-            <button key={id} type="button" class={`sidebar-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{name}</button>
-          ))}
-        </div>
+          {active > 0 && (
+            <button type="button" class="btn-clear sidebar-clear" onClick={clear}>× Limpar todos os filtros ({active})</button>
+          )}
 
-        {tab === "cat" && (
-          <div>
-            <input class="sidebar-search" type="text" placeholder="Filtrar grupos…" value={catQ} onInput={(e) => setCatQ((e.target as HTMLInputElement).value)} />
-            <ul class="group-list">
-              <li class={`group-item${!f.cat ? " active" : ""}`} onClick={() => set({ cat: null })}>
-                <span>Todos os produtos</span><span class="cnt">{count("cat", () => true)}</span>
-              </li>
-              {categories.filter((c) => norm(c.name).includes(norm(catQ))).map((c) => (
-                <li key={c.slug} class={`group-item${f.cat === c.slug ? " active" : ""}`} onClick={() => set({ cat: f.cat === c.slug ? null : c.slug })}>
-                  <span>{c.name}</span><span class="cnt">{count("cat", (p) => p.category === c.slug)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {tab === "brand" && (
-          <div>
-            <input class="sidebar-search" type="text" placeholder="Filtrar marcas…" value={brandQ} onInput={(e) => setBrandQ((e.target as HTMLInputElement).value)} />
-            <ul class="group-list">
-              <li class={`group-item${!f.brand ? " active" : ""}`} onClick={() => set({ brand: null })}>
-                <span>Todas as marcas</span><span class="cnt">{count("brand", () => true)}</span>
-              </li>
-              {brands.filter((b) => norm(b).includes(norm(brandQ))).map((b) => (
-                <li key={b} class={`group-item${f.brand === b ? " active" : ""}`} onClick={() => set({ brand: f.brand === b ? null : b })}>
-                  <span>{b}</span><span class="cnt">{count("brand", (p) => p.brand === b)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {tab === "more" && (
-          <div>
-            <div class="filter-title" style="margin-top:0">Numeração <span style="font-weight:500;text-transform:none;color:var(--text-muted)">(com estoque)</span></div>
+          {/* 1) FILTROS */}
+          <Section title="Filtros" icon="filter" badge={[f.size, f.gender, f.price !== "all"].filter(Boolean).length} open={sec.filtros} onToggle={() => toggle("filtros")}>
+            <div class="filter-title" style="margin-top:0">Numeração</div>
             <div class="size-grid">
               {sizes.map((s) => {
                 const n = count("size", (p) => p.variants.some((v) => v.sizes.some((x) => x.size === s && x.stock > 0)));
@@ -210,12 +200,39 @@ export default function Catalog({ products, whatsapp = "", banners }: { products
                 <button key={r.id} type="button" class={`chip${f.price === r.id ? " active" : ""}`} onClick={() => set({ price: r.id })}>{r.label}</button>
               ))}
             </div>
-          </div>
-        )}
+          </Section>
 
-        {active > 0 && (
-          <button type="button" class="btn-clear" style="width:100%;margin-top:14px" onClick={clear}>× Limpar filtros ({active})</button>
-        )}
+          {/* 2) GRUPOS */}
+          <Section title="Grupos" icon="groups" badge={f.cat ? 1 : 0} open={sec.grupos} onToggle={() => toggle("grupos")}>
+            <input class="sidebar-search" type="text" placeholder="Filtrar grupos…" value={catQ} onInput={(e) => setCatQ((e.target as HTMLInputElement).value)} />
+            <ul class="group-list scroll">
+              <li class={`group-item${!f.cat ? " active" : ""}`} onClick={() => set({ cat: null })}>
+                <span>Todos os produtos</span><span class="cnt">{count("cat", () => true)}</span>
+              </li>
+              {categories.filter((c) => norm(c.name).includes(norm(catQ))).map((c) => (
+                <li key={c.slug} class={`group-item${f.cat === c.slug ? " active" : ""}`} onClick={() => set({ cat: f.cat === c.slug ? null : c.slug })}>
+                  <span>{c.name}</span><span class="cnt">{count("cat", (p) => p.category === c.slug)}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+
+          {/* 3) MARCAS (por último) */}
+          {brands.length > 0 && (
+            <Section title="Marcas" icon="brands" badge={f.brand ? 1 : 0} open={sec.marcas} onToggle={() => toggle("marcas")}>
+              <input class="sidebar-search" type="text" placeholder="Filtrar marcas…" value={brandQ} onInput={(e) => setBrandQ((e.target as HTMLInputElement).value)} />
+              <ul class="group-list scroll">
+                <li class={`group-item${!f.brand ? " active" : ""}`} onClick={() => set({ brand: null })}>
+                  <span>Todas as marcas</span><span class="cnt">{count("brand", () => true)}</span>
+                </li>
+                {brands.filter((b) => norm(b).includes(norm(brandQ))).map((b) => (
+                  <li key={b} class={`group-item${f.brand === b ? " active" : ""}`} onClick={() => set({ brand: f.brand === b ? null : b })}>
+                    <span>{b}</span><span class="cnt">{count("brand", (p) => p.brand === b)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
         </div>
       </aside>
 
@@ -260,7 +277,7 @@ export default function Catalog({ products, whatsapp = "", banners }: { products
       </main>
 
       {openProduct && (
-        <ProductModal product={openProduct} whatsapp={whatsapp} color={open?.color} size={f.size} onClose={() => setOpen(null)} />
+        <ProductModal product={openProduct} whatsapp={whatsapp} messageTemplate={message} color={open?.color} size={f.size} onClose={() => setOpen(null)} />
       )}
     </div>
   );

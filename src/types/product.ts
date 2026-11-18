@@ -35,6 +35,14 @@ export interface CatalogFile {
   updatedAt: string; // ISO
   whatsapp: string; // só dígitos, com DDI
   // Identidade da loja (definida no GoSync) e banners de propaganda do carrossel.
-  store?: { name?: string; primaryColor?: string; logo?: string; banners?: { image: string; link?: string; alt?: string }[] };
+  store?: {
+    name?: string;
+    primaryColor?: string;
+    logo?: string;
+    banners?: { image: string; link?: string; alt?: string }[];
+    message?: string; // modelo da mensagem do WhatsApp ({produto}, {sku}, {cor}, {numeracao}, {valor}, {link})
+    hero?: { enabled?: boolean; title?: string; subtitle?: string }; // faixa da marca no topo
+    photoStyle?: "classic" | "spotlight" | "frame"; // destaque das fotos
+  };
   products: Product[];
 }

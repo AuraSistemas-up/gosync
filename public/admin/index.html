@@ -56,6 +56,26 @@
   .num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; }
   @media (max-width: 640px) { .banner { grid-template-columns: 1fr; } }
 
+  textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: #fff; resize: vertical; }
+  textarea:focus { outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent); border-color: var(--primary); }
+  label.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); font-weight: 600; }
+  label.check input { width: 18px; height: 18px; accent-color: var(--primary); }
+  .var { border: 1px dashed var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, #fff); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; font-weight: 700; }
+  .wa-prev { margin: 0; padding: 14px; border-radius: 14px; background: #dcf8c6; border: 1px solid #b9e8a0; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.5 -apple-system, "Segoe UI", sans-serif; max-width: 460px; }
+  .hero-prev { border-radius: 16px; padding: 18px 20px; color: #fff; display: flex; align-items: center; gap: 16px; background: linear-gradient(120deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000)); }
+  .hero-prev img { height: 54px; max-width: 160px; object-fit: contain; background: #fff; border-radius: 12px; padding: 6px; }
+  .hero-prev b { display: block; font-size: 18px; } .hero-prev span { opacity: .88; font-size: 13px; }
+  .styles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .style { position: relative; display: grid; gap: 4px; justify-items: center; text-align: center; padding: 12px; border: 2px solid var(--line); border-radius: 14px; cursor: pointer; background: #fff; color: var(--text); }
+  .style input { position: absolute; opacity: 0; }
+  .style.on { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+  .style small { color: var(--muted); font-weight: 500; }
+  .ph { display: grid; place-items: center; width: 96px; height: 76px; border-radius: 12px; background: #f1f2f8; }
+  .ph i { width: 56px; height: 34px; border-radius: 10px 18px 6px 6px; background: #8d93a8; }
+  .ph.spotlight { background: radial-gradient(circle at 50% 38%, #fff 0, color-mix(in srgb, var(--primary) 14%, #fff) 70%); box-shadow: inset 0 0 0 1px #fff, 0 8px 18px -10px color-mix(in srgb, var(--primary) 60%, transparent); }
+  .ph.spotlight i { filter: drop-shadow(0 6px 5px rgba(0,0,0,.28)); }
+  .ph.frame { background: #fff; border: 4px solid var(--primary); border-radius: 16px; }
+  .ph.classic { background: #fafafd; border: 1px solid var(--line); }
   .savebar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 12px; justify-content: center; padding: 12px; background: rgba(255,255,255,.95); border-top: 1px solid var(--line); backdrop-filter: blur(8px); }
   .dirty { color: #b45309; font-weight: 600; font-size: 13px; }
   #toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: #1b1f2e; color: #fff; padding: 10px 18px; border-radius: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; max-width: 90vw; }
@@ -115,8 +135,39 @@
     </section>
 
     <section class="card">
+      <h2>Faixa da marca no topo</h2>
+      <p class="hint">Banner largo com a logo da empresa, o nome e uma frase de destaque, logo abaixo do menu do site.</p>
+      <label class="check"><input type="checkbox" id="heroOn" /> Mostrar a faixa no topo</label>
+      <div class="row">
+        <label class="grow">Título (vazio = nome da loja)<input type="text" id="heroTitle" maxlength="60" placeholder="Kuelho's Sapatos" /></label>
+        <label class="grow">Frase de destaque<input type="text" id="heroSub" maxlength="140" placeholder="Calçados para toda a família, com estoque atualizado" /></label>
+      </div>
+      <div class="hero-prev" id="heroPrev"></div>
+    </section>
+
+    <section class="card">
+      <h2>Estilo das fotos dos produtos</h2>
+      <p class="hint">Como a foto aparece nos cards e no pop-up.</p>
+      <div class="styles" id="photoStyles">
+        <label class="style" data-v="spotlight"><input type="radio" name="ps" value="spotlight" /><span class="ph spotlight"><i></i></span><b>Destaque</b><small>Fundo com brilho e sombra</small></label>
+        <label class="style" data-v="frame"><input type="radio" name="ps" value="frame" /><span class="ph frame"><i></i></span><b>Moldura colorida</b><small>Contorno na cor do site</small></label>
+        <label class="style" data-v="classic"><input type="radio" name="ps" value="classic" /><span class="ph classic"><i></i></span><b>Clássico</b><small>Fundo liso e simples</small></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>WhatsApp dos pedidos</h2>
+      <label>Número (DDI + DDD + número)<input type="text" id="wa" inputmode="numeric" placeholder="5511999998888" /></label>
+      <label>Mensagem enviada ao clicar em "Pedir pelo WhatsApp"<textarea id="waMsg" rows="8"></textarea></label>
+      <div class="row" id="waVars"></div>
+      <div class="row"><button class="btn" type="button" id="waReset">Restaurar mensagem padrão</button></div>
+      <p class="hint">Prévia com um produto de exemplo:</p>
+      <pre class="wa-prev" id="waPrev"></pre>
+    </section>
+
+    <section class="card">
       <h2>Banners de propaganda <span class="hint" id="bannerCount"></span></h2>
-      <p class="hint">Giram automaticamente no topo do catálogo. Tamanho sugerido: <strong>1600 × 500 px</strong>. Até <span id="maxB">6</span> banners; use ▲▼ para mudar a ordem.</p>
+      <p class="hint">Giram automaticamente no topo do catálogo. Tamanho ideal: <strong>1600 × 500 px</strong>, mas qualquer imagem funciona: o site ajusta sozinho (preenche o banner ou mostra a imagem inteira sobre um fundo desfocado). Até <span id="maxB">6</span> banners; use ▲▼ para mudar a ordem.</p>
       <div class="banners" id="banners"></div>
       <div class="row"><button class="btn primary" id="addBanner">+ Adicionar banner</button></div>
       <input type="file" id="bannerFile" accept="image/*" multiple hidden />
@@ -144,6 +195,9 @@ const $ = (s) => document.querySelector(s);
 const PRESETS = ["#a33a33", "#d6336c", "#e8590c", "#f59f00", "#2f9e44", "#0c8599", "#1971c2", "#6741d9", "#1b1f2e"];
 const API = "/admin/api.php";
 let csrf = null, cfg = null, dirty = false, maxBanners = 6;
+
+const DEFAULT_MESSAGE = "Olá! Quero pedir este calçado:\n*Modelo:* {produto}\n*Ref/SKU:* {sku}\n*Cor:* {cor}\n*Numeração:* {numeracao}\n*Valor:* {valor}\n*Link:* {link}";
+const VARS = { "{produto}": "Tênis Runner Pro", "{sku}": "SKU-41-3", "{cor}": "Preto", "{numeracao}": "41", "{valor}": "R$ 199,90", "{link}": location.origin + "/produto/?id=tenis-runner-pro&cor=preto&tam=41" };
 
 function toast(msg, kind) { const t = $("#toast"); t.textContent = msg; t.className = "on " + (kind || ""); clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = ""), 3200); }
 
@@ -182,6 +236,35 @@ function render() {
   box.innerHTML = cfg.logo ? `<img src="${cfg.logo}?v=${Date.now()}" alt="Logo atual">` : '<span class="hint">Sem logo</span>';
   $("#logoRemove").hidden = !cfg.logo;
   renderBanners();
+  renderExtras();
+}
+function renderExtras() {
+  $("#heroOn").checked = !!cfg.hero.enabled;
+  $("#heroTitle").value = cfg.hero.title || "";
+  $("#heroSub").value = cfg.hero.subtitle || "";
+  $("#wa").value = cfg.whatsapp || "";
+  $("#waMsg").value = cfg.message || DEFAULT_MESSAGE;
+  document.querySelectorAll(".style").forEach((s) => { const on = s.dataset.v === cfg.photoStyle; s.classList.toggle("on", on); s.querySelector("input").checked = on; });
+  if (!$("#waVars").children.length) {
+    Object.keys(VARS).forEach((v) => { const b = document.createElement("button"); b.type = "button"; b.className = "var"; b.textContent = v; b.title = "Inserir " + v; b.onclick = () => insertVar(v); $("#waVars").append(b); });
+  }
+  renderPreviews();
+}
+function renderPreviews() {
+  const heroBox = $("#heroPrev");
+  heroBox.hidden = !cfg.hero.enabled;
+  heroBox.innerHTML = (cfg.logo ? `<img src="${cfg.logo}" alt="">` : "") + `<div><b></b><span></span></div>`;
+  heroBox.querySelector("b").textContent = cfg.hero.title || cfg.name || "Nome da loja";
+  heroBox.querySelector("span").textContent = cfg.hero.subtitle || "Sua frase de destaque aparece aqui";
+  let txt = (cfg.message || DEFAULT_MESSAGE);
+  txt = txt.split("\n").map((l) => l.replace(/\{\w+\}/g, (m) => VARS[m] ?? m)).join("\n");
+  $("#waPrev").textContent = txt;
+}
+function insertVar(v) {
+  const t = $("#waMsg"), s = t.selectionStart ?? t.value.length, e = t.selectionEnd ?? s;
+  t.value = t.value.slice(0, s) + v + t.value.slice(e);
+  t.focus(); t.selectionStart = t.selectionEnd = s + v.length;
+  cfg.message = t.value; markDirty(); renderPreviews();
 }
 function renderBanners() {
   const box = $("#banners"); box.innerHTML = "";
@@ -240,6 +323,13 @@ $("#logoutBtn").onclick = async () => { await call("logout", { method: "POST" })
 $("#name").oninput = (e) => { cfg.name = e.target.value; markDirty(); };
 $("#color").oninput = (e) => setColor(e.target.value);
 $("#colorHex").oninput = (e) => { let v = e.target.value.trim(); if (v && v[0] !== "#") v = "#" + v; if (/^#[0-9a-fA-F]{6}$/.test(v)) setColor(v); };
+$("#heroOn").onchange = (e) => { cfg.hero.enabled = e.target.checked; markDirty(); renderPreviews(); };
+$("#heroTitle").oninput = (e) => { cfg.hero.title = e.target.value; markDirty(); renderPreviews(); };
+$("#heroSub").oninput = (e) => { cfg.hero.subtitle = e.target.value; markDirty(); renderPreviews(); };
+$("#wa").oninput = (e) => { cfg.whatsapp = e.target.value.replace(/\D/g, ""); if (e.target.value !== cfg.whatsapp) e.target.value = cfg.whatsapp; markDirty(); };
+$("#waMsg").oninput = (e) => { cfg.message = e.target.value; markDirty(); renderPreviews(); };
+$("#waReset").onclick = () => { cfg.message = ""; $("#waMsg").value = DEFAULT_MESSAGE; markDirty(); renderPreviews(); };
+document.querySelectorAll(".style").forEach((s) => s.addEventListener("click", () => { cfg.photoStyle = s.dataset.v; markDirty(); renderExtras(); }));
 $("#logoPick").onclick = () => $("#logoFile").click();
 $("#logoFile").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -258,7 +348,7 @@ $("#bannerFile").onchange = async (e) => {
 };
 $("#saveBtn").onclick = async () => {
   $("#saveBtn").disabled = true;
-  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
+  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners, whatsapp: cfg.whatsapp, message: (cfg.message || "").trim() === DEFAULT_MESSAGE ? "" : cfg.message, hero: cfg.hero, photoStyle: cfg.photoStyle } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
   catch (err) { toast(err.message, "bad"); $("#saveBtn").disabled = false; }
 };
 $("#pwForm").onsubmit = async (e) => {
@@ -271,6 +361,8 @@ async function load() {
   const r = await call("get");
   cfg = r.config; cfg.banners = cfg.banners || []; maxBanners = r.maxBanners || 6; $("#maxB").textContent = maxBanners;
   if (!cfg.primaryColor) cfg.primaryColor = "#a33a33";
+  cfg.hero = Object.assign({ enabled: true, title: "", subtitle: "" }, cfg.hero || {});
+  cfg.whatsapp = cfg.whatsapp || ""; cfg.message = cfg.message || ""; cfg.photoStyle = cfg.photoStyle || "spotlight";
   render(); markDirty(false); show("panel");
 }
 
