@@ -104,6 +104,7 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const catalog = {
     updatedAt: new Date().toISOString(),
     whatsapp: String(cfg.whatsapp || "").replace(/\D/g, ""),
+    store: { name: cfg.storeName || undefined, primaryColor: /^#[0-9a-f]{6}$/i.test(cfg.primaryColor || "") ? cfg.primaryColor : undefined },
     products,
   };
   const hash = crypto.createHash("sha1").update(JSON.stringify({ ...catalog, updatedAt: 0 })).digest("hex");

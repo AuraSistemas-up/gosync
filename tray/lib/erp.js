@@ -63,6 +63,7 @@ function groupProducts(items) {
         name: String(it.modelo).trim(),
         brand: it.marca || undefined,
         category: it.categoria ? slugify(it.categoria) : undefined,
+        categoryLabel: it.categoria ? String(it.categoria).trim() : undefined,
         gender: it.genero ? slugify(it.genero) : undefined,
         price,
         promoPrice: promo > 0 && promo < price ? promo : undefined,

@@ -1,88 +1,55 @@
-import { useState } from "preact/hooks";
 import type { Product } from "../types/product";
+import { categoryName } from "../lib/catalog";
 
-const brl = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 interface Props {
   product: Product;
-  /** Numeração filtrada: só variantes com estoque nela são exibidas. */
+  /** Numeração filtrada: destaca o tamanho e mostra a foto da cor que tem estoque nele. */
   size: string | null;
 }
 
 export default function ProductCard({ product, size }: Props) {
-  const variants = size
-    ? product.variants.filter((v) => v.sizes.some((s) => s.size === size && s.stock > 0))
-    : product.variants;
+  const withSize = size ? product.variants.filter((v) => v.sizes.some((s) => s.size === size && s.stock > 0)) : product.variants;
+  const v = withSize[0] ?? product.variants[0];
 
-  const [idx, setIdx] = useState(0);
-  const v = variants[Math.min(idx, variants.length - 1)];
-  if (!v) return null;
+  // Numerações com estoque em qualquer cor.
+  const sizes = [...new Set(product.variants.flatMap((x) => x.sizes.filter((s) => s.available).map((s) => s.size)))].sort(
+    (a, b) => Number(a) - Number(b),
+  );
+  const shown = sizes.slice(0, 5);
+  if (size && sizes.includes(size) && !shown.includes(size)) shown[shown.length - 1] = size;
 
-  const discount = product.promoPrice
-    ? Math.round((1 - product.promoPrice / product.price) * 100)
-    : 0;
+  const discount = product.promoPrice ? Math.round((1 - product.promoPrice / product.price) * 100) : 0;
+  const href = `/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`;
 
   return (
-    <article class="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200">
-      <a href={`/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`} class="relative block aspect-square bg-stone-100"
-        aria-label={`Ver ${product.name}`}>
-        {v.image ? (
-          <img src={v.image} alt={`${product.name} ${v.color}`} loading="lazy"
-            class="h-full w-full object-cover transition group-hover:scale-105" />
-        ) : (
-          <div class="flex h-full items-center justify-center text-sm text-stone-400">Sem foto</div>
-        )}
-        {discount > 0 && (
-          <span class="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-            -{discount}%
-          </span>
-        )}
-      </a>
-
-      <div class="flex flex-1 flex-col gap-2 p-3">
-        {product.brand && (
-          <p class="text-xs font-medium uppercase tracking-wide text-stone-500">{product.brand}</p>
-        )}
-        <h3 class="line-clamp-2 text-sm font-semibold leading-snug">{product.name}</h3>
-
-        {variants.length > 1 && (
-          <div class="flex flex-wrap gap-1">
-            {variants.map((x, i) => (
-              <button key={x.colorSlug} type="button" onClick={() => setIdx(i)}
-                aria-pressed={i === idx}
-                class={`rounded-full px-2 py-0.5 text-xs ring-1 ${
-                  i === idx ? "bg-stone-900 text-white ring-stone-900" : "ring-stone-300 text-stone-600"
-                }`}>
-                {x.color}
-              </button>
-            ))}
-          </div>
-        )}
-        {variants.length === 1 && <p class="text-xs text-stone-500">{v.color}</p>}
-
-        <div class="flex flex-wrap gap-1">
-          {v.sizes.filter((s) => s.available).map((s) => (
-            <span key={s.sku}
-              class={`min-w-7 rounded px-1.5 py-0.5 text-center text-xs ring-1 ${
-                s.size === size ? "bg-emerald-600 text-white ring-emerald-600" : "text-stone-600 ring-stone-200"
-              }`}>
-              {s.size}
-            </span>
-          ))}
+    <a href={href} class="card" aria-label={product.name}>
+      <div class="card-photo">
+        {v.image ? <img src={v.image} alt={`${product.name} ${v.color}`} loading="lazy" /> : <span class="no-photo">Sem foto</span>}
+        {discount > 0 && <span class="badge-off">-{discount}%</span>}
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          {product.brand && <span class="pill">{product.brand}</span>}
+          {product.category && <span class="pill" style="opacity:.75">{categoryName(product)}</span>}
         </div>
-
-        <div class="mt-auto pt-1">
-          {product.promoPrice ? (
-            <>
-              <span class="text-xs text-stone-400 line-through">{brl(product.price)}</span>
-              <p class="text-lg font-bold text-red-600">{brl(product.promoPrice)}</p>
-            </>
-          ) : (
-            <p class="text-lg font-bold">{brl(product.price)}</p>
-          )}
+        <h3 class="card-title" style="margin:0">{product.name}</h3>
+        <div class="card-sizes">
+          <span class="card-sizes-label">Nº</span>
+          {shown.map((s) => (
+            <span key={s} class={`card-size-chip${s === size ? " match" : ""}`}>{s}</span>
+          ))}
+          {sizes.length > shown.length && <span class="card-size-chip more">+{sizes.length - shown.length}</span>}
+        </div>
+        <div class="card-footer">
+          <div>
+            {product.promoPrice && <span class="price-old">{brl(product.price)}</span>}
+            <span class="card-price">{brl(product.promoPrice ?? product.price)}</span>
+          </div>
+          {product.variants.length > 1 && <span class="badge-var">{product.variants.length} cores</span>}
         </div>
       </div>
-    </article>
+    </a>
   );
 }

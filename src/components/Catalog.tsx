@@ -1,7 +1,9 @@
-import { useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Product } from "../types/product";
+import { categoryName, label, listCategories } from "../lib/catalog";
 import ProductCard from "./ProductCard";
 
+const PAGE_SIZE = 24;
 const PRICE_RANGES = [
   { id: "all", label: "Todos", min: 0, max: Infinity },
   { id: "0-150", label: "Até R$ 150", min: 0, max: 150 },
@@ -9,135 +11,232 @@ const PRICE_RANGES = [
   { id: "300-500", label: "R$ 300 a 500", min: 300, max: 500 },
   { id: "500+", label: "Acima de R$ 500", min: 500, max: Infinity },
 ];
+const SORTS = [
+  { id: "relevance", label: "Relevância" },
+  { id: "price-asc", label: "Menor preço" },
+  { id: "price-desc", label: "Maior preço" },
+  { id: "discount", label: "Maiores descontos" },
+  { id: "name", label: "Nome (A–Z)" },
+];
 
-const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const eff = (p: Product) => p.promoPrice ?? p.price;
+const off = (p: Product) => (p.promoPrice ? 1 - p.promoPrice / p.price : 0);
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: any }) {
+interface F { q: string; cat: string | null; brand: string | null; size: string | null; gender: string | null; price: string }
+
+function readUrl(): F {
+  const u = new URLSearchParams(location.search);
+  return {
+    q: u.get("q") ?? "", cat: u.get("cat"), brand: u.get("marca"), size: u.get("tam"),
+    gender: u.get("genero"), price: u.get("preco") ?? "all",
+  };
+}
+
+function matches(p: Product, f: F, skip?: keyof F): boolean {
+  if (skip !== "cat" && f.cat && p.category !== f.cat) return false;
+  if (skip !== "brand" && f.brand && p.brand !== f.brand) return false;
+  if (skip !== "gender" && f.gender && p.gender !== f.gender && p.gender !== "unissex") return false;
+  if (skip !== "price") {
+    const r = PRICE_RANGES.find((x) => x.id === f.price) ?? PRICE_RANGES[0];
+    if (eff(p) < r.min || eff(p) >= r.max) return false;
+  }
+  // Estoque maior que zero na numeração escolhida, em qualquer cor.
+  if (skip !== "size" && f.size && !p.variants.some((v) => v.sizes.some((s) => s.size === f.size && s.stock > 0))) return false;
+  if (skip !== "q" && f.q.trim()) {
+    const hay = norm([p.name, p.brand, categoryName(p), ...p.variants.flatMap((v) => v.sizes.map((s) => s.sku))].filter(Boolean).join(" "));
+    if (!norm(f.q).split(/\s+/).every((t) => hay.includes(t))) return false;
+  }
+  return true;
+}
+
+function Pager({ page, pages, go }: { page: number; pages: number; go: (n: number) => void }) {
+  if (pages <= 1) return null;
+  const nums = [...new Set([1, page - 1, page, page + 1, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
   return (
-    <button type="button" onClick={onClick} aria-pressed={active}
-      class={`rounded-full px-3 py-1.5 text-sm ring-1 transition ${
-        active ? "bg-stone-900 text-white ring-stone-900" : "bg-white text-stone-700 ring-stone-300"
-      }`}>
-      {children}
-    </button>
+    <nav class="pagination" aria-label="Paginação">
+      <button type="button" disabled={page === 1} onClick={() => go(page - 1)}>‹ Anterior</button>
+      {nums.map((n, i) => (
+        <>
+          {i > 0 && n - nums[i - 1] > 1 && <span style="align-self:center;color:var(--text-muted)">…</span>}
+          <button key={n} type="button" class={n === page ? "active" : ""} onClick={() => go(n)}>{n}</button>
+        </>
+      ))}
+      <button type="button" disabled={page === pages} onClick={() => go(page + 1)}>Próxima ›</button>
+    </nav>
   );
 }
 
 export default function Catalog({ products }: { products: Product[] }) {
-  const [size, setSize] = useState<string | null>(null);
-  const [category, setCategory] = useState<string | null>(null);
-  const [gender, setGender] = useState<string | null>(null);
-  const [price, setPrice] = useState("all");
-  const [open, setOpen] = useState(false);
+  const [f, setF] = useState<F>(() => readUrl());
+  const [sort, setSort] = useState("relevance");
+  const [page, setPage] = useState(1);
+  const [tab, setTab] = useState<"cat" | "brand" | "more">("cat");
+  const [catQ, setCatQ] = useState("");
+  const [brandQ, setBrandQ] = useState("");
+  const set = (patch: Partial<F>) => { setF((x) => ({ ...x, ...patch })); setPage(1); };
 
-  // Opções derivadas dos dados do ERP (34..44 sempre aparecem + extras).
-  const sizes = useMemo(() => {
-    const set = new Set<string>();
-    for (let n = 34; n <= 44; n++) set.add(String(n));
-    products.forEach((p) => p.variants.forEach((v) => v.sizes.forEach((s) => set.add(s.size))));
-    return [...set].sort((a, b) => Number(a) - Number(b));
-  }, [products]);
-  const categories = useMemo(() => [...new Set(products.map((p) => p.category).filter(Boolean))] as string[], [products]);
+  // Mantém a URL em sincronia (links compartilháveis e botão voltar do produto).
+  useEffect(() => {
+    const u = new URLSearchParams();
+    if (f.q) u.set("q", f.q);
+    if (f.cat) u.set("cat", f.cat);
+    if (f.brand) u.set("marca", f.brand);
+    if (f.size) u.set("tam", f.size);
+    if (f.gender) u.set("genero", f.gender);
+    if (f.price !== "all") u.set("preco", f.price);
+    const qs = u.toString();
+    history.replaceState(null, "", location.pathname + (qs ? "?" + qs : ""));
+  }, [f]);
+
+  const categories = useMemo(() => listCategories(products), [products]);
+  const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort((a, b) => a!.localeCompare(b!, "pt-BR")) as string[], [products]);
   const genders = useMemo(() => [...new Set(products.map((p) => p.gender).filter(Boolean))] as string[], [products]);
+  const sizes = useMemo(() => {
+    const s = new Set<string>();
+    for (let n = 34; n <= 44; n++) s.add(String(n));
+    products.forEach((p) => p.variants.forEach((v) => v.sizes.forEach((x) => s.add(x.size))));
+    return [...s].sort((a, b) => Number(a) - Number(b));
+  }, [products]);
 
-  const filtered = useMemo(() => {
-    const range = PRICE_RANGES.find((r) => r.id === price)!;
-    return products.filter((p) => {
-      if (category && p.category !== category) return false;
-      if (gender && p.gender !== gender && p.gender !== "unissex") return false;
-      const eff = p.promoPrice ?? p.price;
-      if (eff < range.min || eff >= range.max) return false;
-      // Estoque > 0 na numeração escolhida, em qualquer cor.
-      if (size && !p.variants.some((v) => v.sizes.some((s) => s.size === size && s.stock > 0))) return false;
-      return true;
-    });
-  }, [products, size, category, gender, price]);
+  // Contadores de cada faceta, respeitando os demais filtros.
+  const count = (skip: keyof F, test: (p: Product) => boolean) => products.filter((p) => matches(p, f, skip) && test(p)).length;
 
-  const activeCount = [size, category, gender, price !== "all"].filter(Boolean).length;
-  const clear = () => { setSize(null); setCategory(null); setGender(null); setPrice("all"); };
+  const results = useMemo(() => {
+    const list = products.filter((p) => matches(p, f));
+    const by: Record<string, (a: Product, b: Product) => number> = {
+      "price-asc": (a, b) => eff(a) - eff(b),
+      "price-desc": (a, b) => eff(b) - eff(a),
+      discount: (a, b) => off(b) - off(a),
+      name: (a, b) => a.name.localeCompare(b.name, "pt-BR"),
+    };
+    return by[sort] ? [...list].sort(by[sort]) : list;
+  }, [products, f, sort]);
+
+  const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const cur = Math.min(page, pages);
+  const visible = results.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE);
+  const goPage = (n: number) => { setPage(n); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const clear = () => { setF({ q: "", cat: null, brand: null, size: null, gender: null, price: "all" }); setPage(1); };
+  const active = [f.q, f.cat, f.brand, f.size, f.gender, f.price !== "all"].filter(Boolean).length;
+
+  const catName = f.cat ? categories.find((c) => c.slug === f.cat)?.name : null;
+  const title = f.q ? `Resultados para “${f.q}”` : catName ?? "Todos os produtos";
 
   return (
-    <div class="md:grid md:grid-cols-[250px_1fr] md:gap-6">
-      <aside class="mb-4 md:mb-0">
-        <button type="button" onClick={() => setOpen(!open)}
-          class="flex w-full items-center justify-between rounded-xl bg-white px-4 py-3 font-medium ring-1 ring-stone-200 md:hidden">
-          <span>Filtros{activeCount > 0 && ` (${activeCount})`}</span>
-          <span>{open ? "−" : "+"}</span>
-        </button>
-
-        <div class={`${open ? "block" : "hidden"} mt-3 space-y-5 rounded-xl bg-white p-4 ring-1 ring-stone-200 md:mt-0 md:block md:sticky md:top-20`}>
-          <section>
-            <h2 class="mb-2 text-sm font-semibold">Numeração</h2>
-            <div class="grid grid-cols-6 gap-1.5">
-              {sizes.map((s) => (
-                <button key={s} type="button" aria-pressed={size === s}
-                  onClick={() => setSize(size === s ? null : s)}
-                  class={`rounded-lg py-2 text-sm ring-1 ${
-                    size === s ? "bg-emerald-600 text-white ring-emerald-600" : "ring-stone-300"
-                  }`}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {categories.length > 0 && (
-            <section>
-              <h2 class="mb-2 text-sm font-semibold">Categoria</h2>
-              <div class="flex flex-wrap gap-2">
-                {categories.map((c) => (
-                  <Chip key={c} active={category === c} onClick={() => setCategory(category === c ? null : c)}>{label(c)}</Chip>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {genders.length > 0 && (
-            <section>
-              <h2 class="mb-2 text-sm font-semibold">Gênero</h2>
-              <div class="flex flex-wrap gap-2">
-                {genders.map((g) => (
-                  <Chip key={g} active={gender === g} onClick={() => setGender(gender === g ? null : g)}>{label(g)}</Chip>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section>
-            <h2 class="mb-2 text-sm font-semibold">Faixa de preço</h2>
-            <div class="flex flex-wrap gap-2">
-              {PRICE_RANGES.map((r) => (
-                <Chip key={r.id} active={price === r.id} onClick={() => setPrice(r.id)}>{r.label}</Chip>
-              ))}
-            </div>
-          </section>
-
-          {activeCount > 0 && (
-            <button type="button" onClick={clear} class="w-full rounded-lg py-2 text-sm text-stone-600 underline">
-              Limpar filtros
-            </button>
-          )}
+    <div class="layout">
+      <aside class="sidebar" aria-label="Grupos e filtros">
+        <div class="sidebar-tabs">
+          {([["cat", "Grupos"], ["brand", "Marcas"], ["more", "Filtros"]] as const).map(([id, name]) => (
+            <button key={id} type="button" class={`sidebar-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{name}</button>
+          ))}
         </div>
-      </aside>
 
-      <section>
-        <p class="mb-3 text-sm text-stone-500" aria-live="polite">
-          {filtered.length} {filtered.length === 1 ? "modelo" : "modelos"}
-          {size && ` com numeração ${size} em estoque`}
-        </p>
-        {filtered.length === 0 ? (
-          <div class="rounded-xl bg-white p-8 text-center ring-1 ring-stone-200">
-            <p class="font-medium">Nenhum calçado encontrado</p>
-            <button type="button" onClick={clear} class="mt-3 rounded-lg bg-stone-900 px-4 py-2 text-white">
-              Limpar filtros
-            </button>
-          </div>
-        ) : (
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
-            {filtered.map((p) => <ProductCard key={p.id} product={p} size={size} />)}
+        {tab === "cat" && (
+          <div>
+            <input class="sidebar-search" type="text" placeholder="Filtrar grupos…" value={catQ} onInput={(e) => setCatQ((e.target as HTMLInputElement).value)} />
+            <ul class="group-list">
+              <li class={`group-item${!f.cat ? " active" : ""}`} onClick={() => set({ cat: null })}>
+                <span>Todos os produtos</span><span class="cnt">{count("cat", () => true)}</span>
+              </li>
+              {categories.filter((c) => norm(c.name).includes(norm(catQ))).map((c) => (
+                <li key={c.slug} class={`group-item${f.cat === c.slug ? " active" : ""}`} onClick={() => set({ cat: f.cat === c.slug ? null : c.slug })}>
+                  <span>{c.name}</span><span class="cnt">{count("cat", (p) => p.category === c.slug)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
-      </section>
+
+        {tab === "brand" && (
+          <div>
+            <input class="sidebar-search" type="text" placeholder="Filtrar marcas…" value={brandQ} onInput={(e) => setBrandQ((e.target as HTMLInputElement).value)} />
+            <ul class="group-list">
+              <li class={`group-item${!f.brand ? " active" : ""}`} onClick={() => set({ brand: null })}>
+                <span>Todas as marcas</span><span class="cnt">{count("brand", () => true)}</span>
+              </li>
+              {brands.filter((b) => norm(b).includes(norm(brandQ))).map((b) => (
+                <li key={b} class={`group-item${f.brand === b ? " active" : ""}`} onClick={() => set({ brand: f.brand === b ? null : b })}>
+                  <span>{b}</span><span class="cnt">{count("brand", (p) => p.brand === b)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {tab === "more" && (
+          <div>
+            {genders.length > 0 && (
+              <>
+                <div class="filter-title">Gênero</div>
+                <div class="chips">
+                  {genders.map((g) => (
+                    <button key={g} type="button" class={`chip${f.gender === g ? " active" : ""}`} onClick={() => set({ gender: f.gender === g ? null : g })}>{label(g)}</button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div class="filter-title">Faixa de preço</div>
+            <div class="chips">
+              {PRICE_RANGES.map((r) => (
+                <button key={r.id} type="button" class={`chip${f.price === r.id ? " active" : ""}`} onClick={() => set({ price: r.id })}>{r.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {active > 0 && (
+          <button type="button" class="btn-clear" style="width:100%;margin-top:14px" onClick={clear}>× Limpar filtros ({active})</button>
+        )}
+      </aside>
+
+      <main class="content">
+        {f.brand && (
+          <div class="brand-banner">
+            <div class="brand-banner-mono">{f.brand.charAt(0).toUpperCase()}</div>
+            <div class="brand-banner-info">
+              <div class="brand-banner-badge">Marca selecionada</div>
+              <h2 class="brand-banner-name">{f.brand}</h2>
+              <div class="brand-banner-count">{results.length} {results.length === 1 ? "modelo disponível" : "modelos disponíveis"}</div>
+            </div>
+            <button type="button" class="btn-clear" onClick={() => set({ brand: null })}>× Limpar</button>
+          </div>
+        )}
+
+        <div class="size-filter-bar">
+          <span class="size-filter-label">Tamanho:</span>
+          <div class="size-pills-wrap">
+            <button type="button" class={`size-pill${!f.size ? " active" : ""}`} onClick={() => set({ size: null })}>Todos</button>
+            {sizes.map((s) => {
+              const n = count("size", (p) => p.variants.some((v) => v.sizes.some((x) => x.size === s && x.stock > 0)));
+              return (
+                <button key={s} type="button" disabled={n === 0 && f.size !== s} title={n === 0 ? "Sem estoque" : `${n} modelo(s)`}
+                  class={`size-pill${f.size === s ? " active" : ""}`} onClick={() => set({ size: f.size === s ? null : s })}>{s}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div class="content-header">
+          <h1 class="breadcrumb" style="margin:0">{title}</h1>
+          <div class="header-right">
+            <span class="result-count" aria-live="polite">{results.length} {results.length === 1 ? "modelo" : "modelos"}{f.size ? ` · nº ${f.size} em estoque` : ""}</span>
+            <select class="sort-select" aria-label="Ordenar" value={sort} onChange={(e) => { setSort((e.target as HTMLSelectElement).value); setPage(1); }}>
+              {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {results.length === 0 ? (
+          <div class="empty-state">
+            Nenhum calçado encontrado com esses filtros.
+            <div><button type="button" class="btn-clear" onClick={clear}>Limpar filtros</button></div>
+          </div>
+        ) : (
+          <div class="grid">{visible.map((p) => <ProductCard key={p.id} product={p} size={f.size} />)}</div>
+        )}
+        <Pager page={cur} pages={pages} go={goPage} />
+      </main>
     </div>
   );
 }

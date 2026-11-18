@@ -117,6 +117,12 @@
         <label>WhatsApp da loja (DDI+DDD+número)<input type="text" name="whatsapp" placeholder="5511999998888" /></label>
       </fieldset>
       <fieldset>
+        <legend>Loja (aparência do site)</legend>
+        <label>Nome da loja<input type="text" name="storeName" placeholder="Minha Sapataria" /></label>
+        <label>Cor principal<input type="color" name="primaryColor" style="width:60px;height:38px;padding:2px;background:#0b1220;border:1px solid var(--line);border-radius:10px" /></label>
+        <p class="note">Nome e cor são aplicados no site na próxima sincronização.</p>
+      </fieldset>
+      <fieldset>
         <legend>Locaweb (FTP)</legend>
         <label>Servidor FTP<input type="text" name="ftpHost" placeholder="ftp.seudominio.com.br" /></label>
         <div class="row">
@@ -195,6 +201,7 @@ function readForm() {
   for (const el of f.elements) {
     if (!el.name) continue;
     o[el.name] = el.type === "checkbox" ? el.checked : el.type === "number" ? Number(el.value) : el.value.trim();
+    if (el.type === "color") o[el.name] = el.value;
   }
   return o;
 }

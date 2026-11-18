@@ -6,6 +6,8 @@ const DEFAULTS = {
   erpUrl: "",
   erpToken: "",
   whatsapp: "",
+  storeName: "",
+  primaryColor: "#a33a33",
   ftpHost: "",
   ftpUser: "",
   ftpPass: "",

@@ -2,9 +2,11 @@
 import Base from "../layouts/Base.astro";
 ---
 <Base title="Não encontrado | Sapataria">
-  <main class="mx-auto max-w-md px-4 py-16 text-center">
-    <h1 class="text-2xl font-bold">Calçado não encontrado</h1>
-    <p class="mt-2 text-stone-600">Ele pode ter esgotado ou saído do catálogo.</p>
-    <a href="/" class="mt-5 inline-block rounded-lg bg-stone-900 px-4 py-2 text-white">Ver catálogo</a>
-  </main>
+  <div class="product-wrap">
+    <div class="empty-state">
+      <h1 style="margin:0 0 6px;color:var(--text)">Página não encontrada</h1>
+      <p style="margin:0">O calçado pode ter esgotado ou saído do catálogo.</p>
+      <a href="/" class="btn-whatsapp" style="margin-top:16px;padding:10px 20px;border-radius:999px;background:linear-gradient(135deg,var(--primary),var(--primary-dark))">Ver catálogo</a>
+    </div>
+  </div>
 </Base>
