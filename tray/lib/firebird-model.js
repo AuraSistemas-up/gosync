@@ -27,7 +27,14 @@ const MARCAS = {
 
 const GERAL = /^geral$/i;
 const titleCase = (s) => s.toLowerCase().replace(/(^|\s)(\S)/g, (_, a, b) => a + b.toUpperCase());
-const SIZE_SUFFIX = /\s+N\s?(\d{2}(?:\/\d{2})?)\s*$/i;
+/** Texto do cadastro como está (mesma grafia), só trocando CAIXA ALTA por inicial maiúscula: "SANDALIA FEMININA" → "Sandalia Feminina". */
+const label = (s) =>
+  String(s).replace(/\s+/g, " ").trim().split(" ").map((w) => {
+    if (/\d/.test(w) || (w.length <= 2 && w === w.toUpperCase())) return w; // códigos e siglas curtas
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(" ");
+
+const SIZE_SUFFIX =/\s+N\s?(\d{2}(?:\/\d{2})?)\s*$/i;
 
 function parseName(desc) {
   const clean = String(desc || "").replace(/\s+/g, " ").trim();
@@ -85,8 +92,11 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
   log(`Lendo produtos (ativos, exportar=S, tipo ${tiposList.join("/")}, com estoque)…`);
   const STOCK = "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)";
   const prods = await q(`
-    SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, p.PRD_IMAGEM, p.PRD_DT_CADASTRO AS CAD
-    FROM TB_PRODUTO p LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
+    SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, m.PMAR_DESCRICAO AS MARCA,
+           p.PRD_IMAGEM, p.PRD_DT_CADASTRO AS CAD
+    FROM TB_PRODUTO p
+    LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
+    LEFT JOIN TB_PROD_MARCA m ON m.PMAR_ID = p.PRD_MARCA
     WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
 
   const stockRows = await q(`SELECT PRDE_PRODUTO AS P, COALESCE(PRDE_VARIACAO, 0) AS V, SUM(PRDE_ESTOQUE) AS S FROM TB_PRODUTO_ESTOQUE WHERE PRDE_ESTOQUE > 0 GROUP BY 1, 2`);
@@ -162,7 +172,12 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
     if (IGNORAR.test(info.base)) continue;
 
     const pvars = (varsByProd.get(p.PRD_ID) || []).filter((v) => (stock.get(`${p.PRD_ID}:${v.V}`) || 0) > 0);
-    const categoria = info.tipo ?? (p.GRUPO && !GERAL.test(p.GRUPO) ? titleCase(String(p.GRUPO).trim()) : "Outros");
+    // Grupo e marca vêm SOMENTE do cadastro do produto (PRD_GRUPO → TB_PROD_GRUPO, PRD_MARCA → TB_PROD_MARCA).
+    // Nada é deduzido pelo nome: sem grupo cadastrado o produto vai para "Outros"; sem marca fica sem marca.
+    const grupoCadastro = p.GRUPO && String(p.GRUPO).trim() ? label(p.GRUPO) : null;
+    const marcaCadastro = p.MARCA && String(p.MARCA).trim() ? label(p.MARCA) : null;
+    const categoria = grupoCadastro ?? "Outros";
+    info.brand = marcaCadastro ?? undefined;
     const price = Number(p.PRD_PRECO_VENDA) || 0;
 
     if (pvars.length) {
