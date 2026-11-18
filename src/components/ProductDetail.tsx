@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { favorites, useFavorites } from "../lib/favorites";
 import type { Product } from "../types/product";
-import { buildWhatsMessage, categoryName } from "../lib/catalog";
+import { buildWhatsMessage, categoryName, shareLink, trackOrder } from "../lib/catalog";
 import { brl } from "./ProductCard";
 import Photo from "./Photo";
 
@@ -72,9 +72,7 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
   };
 
   // Link direto para o produto (já com cor e numeração), enviado na mensagem do WhatsApp.
-  const link = selected
-    ? `${location.origin}/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}&tam=${encodeURIComponent(selected.size)}`
-    : "";
+  const link = selected ? shareLink(product.id, v.colorSlug, selected.size) : "";
   const message = selected
     ? buildWhatsMessage(messageTemplate, {
         produto: product.name,
@@ -189,7 +187,7 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
         </div>
 
         <div class="pm-cta">
-          <a class="btn-whatsapp pm-whatsapp" href={href} target="_blank" rel="noopener noreferrer" aria-disabled={href ? "false" : "true"}>
+          <a class="btn-whatsapp pm-whatsapp" href={href} target="_blank" rel="noopener noreferrer" aria-disabled={href ? "false" : "true"} onClick={() => href && trackOrder(product.id)}>
             <WaIcon /> {ctaText}
           </a>
         </div>

@@ -26,6 +26,8 @@ export interface Product {
   categoryLabel?: string; // nome original do ERP (ex.: "Tênis")
   gender?: string; // "masculino" | "feminino" | "infantil" | "unissex"
   price: number;
+  sold?: number; // unidades vendidas nos últimos 90 dias (para "Mais vendidos")
+  added?: string; // data de cadastro AAAA-MM-DD (para "Chegou agora")
   promoPrice?: number; // só se menor que price
   variants: Variant[];
 }
@@ -44,6 +46,10 @@ export interface CatalogFile {
     hero?: { enabled?: boolean; title?: string; subtitle?: string }; // faixa da marca no topo
     photoStyle?: "classic" | "spotlight" | "frame"; // destaque das fotos
     footer?: { about?: string; address?: string; hours?: string; phone?: string; instagram?: string }; // rodapé (painel admin)
+    pages?: boolean; // existem páginas p/<id>.html com prévia (criadas pelo GoSync)
+    featured?: string[]; // ids em destaque (painel admin)
+    hidden?: string[]; // ids ocultos (painel admin)
+    sections?: { featured?: boolean; bestsellers?: boolean; news?: boolean }; // seções da página inicial
   };
   products: Product[];
 }

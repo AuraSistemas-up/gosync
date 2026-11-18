@@ -15,6 +15,7 @@ const DEFAULTS = {
   erpToken: "",
   whatsapp: "",
   storeName: "",
+  siteUrl: "", // endereço público do site (https://...), para páginas com prévia, sitemap e robots
   primaryColor: "#a33a33",
   bannersDir: "", // pasta com as imagens do carrossel de propaganda (até 6)
   ftpHost: "",

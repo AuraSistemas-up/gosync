@@ -100,6 +100,13 @@ function load_config()
             'subtitle' => isset($c['hero']['subtitle']) ? (string)$c['hero']['subtitle'] : '',
         ),
         'photoStyle' => isset($c['photoStyle']) ? (string)$c['photoStyle'] : 'spotlight',
+        'featured' => isset($c['featured']) && is_array($c['featured']) ? array_values($c['featured']) : array(),
+        'hidden' => isset($c['hidden']) && is_array($c['hidden']) ? array_values($c['hidden']) : array(),
+        'sections' => array(
+            'featured' => isset($c['sections']['featured']) ? (bool)$c['sections']['featured'] : true,
+            'bestsellers' => isset($c['sections']['bestsellers']) ? (bool)$c['sections']['bestsellers'] : true,
+            'news' => isset($c['sections']['news']) ? (bool)$c['sections']['news'] : true,
+        ),
         'footer' => array(
             'about' => isset($c['footer']['about']) ? (string)$c['footer']['about'] : '',
             'address' => isset($c['footer']['address']) ? (string)$c['footer']['address'] : '',
@@ -108,6 +115,60 @@ function load_config()
             'instagram' => isset($c['footer']['instagram']) ? (string)$c['footer']['instagram'] : '',
         ),
     );
+}
+
+// ---------- contador de pedidos por produto (público, sem sessão) ----------
+// Chamado pelo site quando o cliente clica em "Pedir pelo WhatsApp". Guarda em admin/stats.json (bloqueado pelo .htaccess).
+if (isset($_GET['a']) && $_GET['a'] === 'track') {
+    $id = isset($_GET['id']) ? (string)$_GET['id'] : '';
+    if (!preg_match('/^[a-z0-9-]{1,120}$/', $id)) {
+        out(array('ok' => false), 400);
+    }
+    $statsFile = __DIR__ . '/stats.json';
+    $rateFile = __DIR__ . '/rate.json';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '?';
+    $now = time();
+    // Limite simples: 40 registros por minuto por IP (evita lotar o arquivo).
+    $rate = is_file($rateFile) ? json_decode(file_get_contents($rateFile), true) : array();
+    $rate = is_array($rate) ? $rate : array();
+    foreach ($rate as $k => $v) {
+        if (!is_array($v) || $v[0] < $now - 60) {
+            unset($rate[$k]);
+        }
+    }
+    $r = isset($rate[$ip]) ? $rate[$ip] : array($now, 0);
+    if ($r[1] >= 40) {
+        out(array('ok' => true, 'limited' => true));
+    }
+    $rate[$ip] = array($r[0], $r[1] + 1);
+    @file_put_contents($rateFile, json_encode($rate), LOCK_EX);
+
+    $fh = @fopen($statsFile, 'c+');
+    if (!$fh) {
+        out(array('ok' => false), 500);
+    }
+    flock($fh, LOCK_EX);
+    $raw = stream_get_contents($fh);
+    $stats = $raw ? json_decode($raw, true) : array();
+    if (!is_array($stats)) {
+        $stats = array();
+    }
+    $stats += array('produtos' => array(), 'dias' => array());
+    $prev = isset($stats['produtos'][$id]['n']) ? (int)$stats['produtos'][$id]['n'] : 0;
+    if (count($stats['produtos']) < 5000 || $prev > 0) {
+        $stats['produtos'][$id] = array('n' => $prev + 1, 'ultimo' => gmdate('c'));
+    }
+    $day = gmdate('Y-m-d');
+    $stats['dias'][$day] = (isset($stats['dias'][$day]) ? (int)$stats['dias'][$day] : 0) + 1;
+    krsort($stats['dias']);
+    $stats['dias'] = array_slice($stats['dias'], 0, 60, true);
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, json_encode($stats));
+    fflush($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    out(array('ok' => true));
 }
 
 // ---------- sessão ----------
@@ -164,7 +225,26 @@ switch ($a) {
         ));
 
     case 'me':
-        out(array('ok' => true, 'auth' => $authed, 'csrf' => $authed ? $_SESSION['csrf'] : null));
+        out(array('ok' => true, 'auth' => $authed, 'csrf' => $authed ? $_SESSION['csrf'] : null, 'defaultPassword' => !is_file($CRED)));
+
+    case 'stats':
+        need_auth();
+        $sf = __DIR__ . '/stats.json';
+        $s = is_file($sf) ? json_decode(file_get_contents($sf), true) : array();
+        $s = is_array($s) ? $s : array();
+        $prod = isset($s['produtos']) && is_array($s['produtos']) ? $s['produtos'] : array();
+        uasort($prod, function ($a, $b) {
+            return (isset($b['n']) ? $b['n'] : 0) - (isset($a['n']) ? $a['n'] : 0);
+        });
+        $top = array();
+        foreach (array_slice($prod, 0, 30, true) as $id => $v) {
+            $top[] = array('id' => $id, 'n' => (int)$v['n'], 'ultimo' => isset($v['ultimo']) ? $v['ultimo'] : '');
+        }
+        $total = 0;
+        foreach ($prod as $v) {
+            $total += (int)$v['n'];
+        }
+        out(array('ok' => true, 'top' => $top, 'total' => $total, 'dias' => isset($s['dias']) ? $s['dias'] : new stdClass()));
 
     case 'login':
         if ($method !== 'POST') {
@@ -213,7 +293,7 @@ switch ($a) {
 
     case 'get':
         need_auth();
-        out(array('ok' => true, 'config' => load_config(), 'maxBanners' => MAX_BANNERS));
+        out(array('ok' => true, 'config' => load_config(), 'maxBanners' => MAX_BANNERS, 'defaultPassword' => !is_file($CRED)));
 
     case 'save':
         need_auth();
@@ -283,7 +363,30 @@ switch ($a) {
             'phone' => $clip(isset($ft['phone']) ? $ft['phone'] : '', 30),
             'instagram' => $ig,
         );
+        // Destaques, produtos ocultos e seções da página inicial.
+        $idList = function ($v, $max) {
+            $out = array();
+            foreach (is_array($v) ? $v : array() as $x) {
+                $x = (string)$x;
+                if (preg_match('/^[a-z0-9-]{1,120}$/', $x) && !in_array($x, $out, true)) {
+                    $out[] = $x;
+                }
+                if (count($out) >= $max) {
+                    break;
+                }
+            }
+            return $out;
+        };
+        $sec = isset($d['sections']) && is_array($d['sections']) ? $d['sections'] : array();
+        $sections = array(
+            'featured' => !isset($sec['featured']) || !empty($sec['featured']),
+            'bestsellers' => !isset($sec['bestsellers']) || !empty($sec['bestsellers']),
+            'news' => !isset($sec['news']) || !empty($sec['news']),
+        );
         $cfg = array(
+            'featured' => $idList(isset($d['featured']) ? $d['featured'] : array(), 24),
+            'hidden' => $idList(isset($d['hidden']) ? $d['hidden'] : array(), 1000),
+            'sections' => $sections,
             'footer' => $footer,
             'name' => $name, 'primaryColor' => $color, 'logo' => $logo, 'banners' => $banners,
             'whatsapp' => $wa, 'message' => $message,

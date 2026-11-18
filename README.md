@@ -25,6 +25,14 @@ Em `https://seusite.com.br/admin/`: logo, cor, nome da loja e banners do carross
 - Se algo falhar no servidor, abra `/admin/api.php?a=ping` (mostra a versão do PHP e se as pastas são graváveis).
 - No `npm run dev` não há PHP: o `dev/admin-mock.mjs` simula a API.
 
+## Links com prévia, Google e segurança
+- Em *Configurações* do GoSync, preencha **Endereço público do site** (ex.: `https://kuelhos.goupsistemas.com`). Com isso o GoSync cria uma página por produto
+  (`/p/<id>/`) com foto e preço na prévia do WhatsApp, dados para o Google, `sitemap.xml` e `robots.txt`.
+- O `.htaccess` força **HTTPS**. O painel `/admin` avisa enquanto a senha inicial não for trocada.
+- No painel: **Destaques e produtos ocultos**, **seções da página inicial** (Destaques, Mais vendidos, Chegou agora) e **Mais pedidos pelo WhatsApp** (contagem de cliques).
+- Dados de vendas e data de cadastro vêm do ERP (pedidos finalizados dos últimos 90 dias e `PRD_DT_CADASTRO`).
+- `verificar-locaweb.bat` confere HTTPS, a prévia de um produto, o sitemap, o PHP e as proteções.
+
 ## Gerar uma nova versão
 ```powershell
 cd tray

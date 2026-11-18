@@ -85,7 +85,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
   log(`Lendo produtos (ativos, exportar=S, tipo ${tiposList.join("/")}, com estoque)…`);
   const STOCK = "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)";
   const prods = await q(`
-    SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, p.PRD_IMAGEM
+    SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, p.PRD_IMAGEM, p.PRD_DT_CADASTRO AS CAD
     FROM TB_PRODUTO p LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
     WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
 
@@ -95,6 +95,22 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
   for (const r of stockRows) {
     stock.set(`${r.P}:${r.V}`, Number(r.S));
     prodStock.set(r.P, (prodStock.get(r.P) || 0) + Number(r.S));
+  }
+
+  // Vendas dos últimos 90 dias (pedidos finalizados), contados a partir da venda mais recente do banco.
+  // Alimenta a seção "Mais vendidos". Se a tabela não existir ou falhar, o catálogo segue sem esse dado.
+  const sold = new Map(); // PRD_ID → quantidade
+  try {
+    const rows = await q(`
+      SELECT i.PEVI_PRODUTO AS P, SUM(i.PEVI_QUANTIDADE) AS Q
+      FROM TB_PEDIDO_VENDA_ITEM i
+      JOIN TB_PEDIDO_VENDA v ON v.PEV_EMPRESA = i.PEVI_EMPRESA AND v.PEV_ID = i.PEVI_PEDIDO_VENDA
+      WHERE v.PEV_STATUS = 'F'
+        AND i.PEVI_DT_LANCAMENTO >= (SELECT DATEADD(-90 DAY TO MAX(x.PEVI_DT_LANCAMENTO)) FROM TB_PEDIDO_VENDA_ITEM x)
+      GROUP BY i.PEVI_PRODUTO`);
+    for (const r of rows) if (Number(r.Q) > 0) sold.set(r.P, Number(r.Q));
+  } catch (e) {
+    log(`Vendas indisponíveis (${String(e.message).split("\n")[0]}); seguindo sem "mais vendidos".`);
   }
 
   log("Lendo variações e atributos…");
@@ -120,7 +136,14 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
 
   /* ----- monta modelos ----- */
   const models = new Map(); // chave → model
-  const getModel = (key, init) => models.get(key) ?? (models.set(key, { ...init, variants: new Map(), minPrice: Infinity, gender: undefined }).get(key));
+  const getModel = (key, init) => models.get(key) ?? (models.set(key, { ...init, variants: new Map(), minPrice: Infinity, gender: undefined, sold: 0, added: "" }).get(key));
+  // Soma as vendas e guarda a data de cadastro mais recente entre os cadastros que formam o modelo.
+  const track = (m, p) => {
+    m.sold += sold.get(p.PRD_ID) || 0;
+    const d = p.CAD ? new Date(p.CAD) : null;
+    const iso = d && !isNaN(d) ? d.toISOString().slice(0, 10) : "";
+    if (iso > m.added) m.added = iso;
+  };
   const addVariant = (m, color) => {
     const slug = slugify(color || "unica");
     return m.variants.get(slug) ?? m.variants.set(slug, { color: color || "Único", colorSlug: slug, images: [], sizes: new Map() }).get(slug);
@@ -145,6 +168,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
     if (pvars.length) {
       // Produto com grade por variações (tamanho + cor).
       const m = getModel(`P${p.PRD_ID}`, { id: slugify(info.display) + "-" + p.PRD_ID, name: info.display, brand: info.brand, category: categoria, price });
+      track(m, p);
       for (const v of pvars) {
         const at = attrByVar.get(`${p.PRD_ID}:${v.V}`) || [];
         const cor = at.find((a) => a.tipo.includes("COR"))?.valor;
@@ -166,6 +190,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
       if (qty <= 0) continue;
       const m = getModel(`L${slugify(info.base)}`, { id: slugify(info.display) + "-" + p.PRD_ID, name: info.display, brand: info.brand, category: categoria, price });
       m.gender ??= genderOf(p.GRUPO);
+      track(m, p);
       const variant = addVariant(m, null);
       const url = await photoUrl(`p${p.PRD_ID}`, p.PRD_IMAGEM);
       if (url && !variant.images.includes(url)) variant.images.push(url);
@@ -186,6 +211,8 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
     if (!(price > 0)) continue; // sem preço de venda: não publicar
     products.push({
       id: m.id, name: m.name, brand: m.brand, category: slugify(m.category), categoryLabel: m.category, gender: m.gender, price, variants,
+      sold: m.sold > 0 ? m.sold : undefined, // unidades vendidas nos últimos 90 dias
+      added: m.added || undefined, // data de cadastro (AAAA-MM-DD)
     });
   }
   products.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

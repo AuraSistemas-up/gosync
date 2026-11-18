@@ -14,12 +14,15 @@ export function adminMock() {
   const pub = path.resolve("public");
   const CONFIG = path.join(pub, "data", "config.json");
   const load = () => {
-    const base = { name: "", primaryColor: "", logo: "", banners: [], whatsapp: "", message: "", hero: { enabled: true, title: "", subtitle: "" }, photoStyle: "spotlight", footer: { about: "", address: "", hours: "", phone: "", instagram: "" } };
+    const base = { name: "", primaryColor: "", logo: "", banners: [], whatsapp: "", message: "", hero: { enabled: true, title: "", subtitle: "" }, photoStyle: "spotlight", featured: [], hidden: [], sections: { featured: true, bestsellers: true, news: true }, footer: { about: "", address: "", hours: "", phone: "", instagram: "" } };
     try {
       const c = JSON.parse(fs.readFileSync(CONFIG, "utf8"));
-      return { ...base, ...c, banners: Array.isArray(c.banners) ? c.banners : [], hero: { ...base.hero, ...(c.hero || {}) }, footer: { ...base.footer, ...(c.footer || {}) } };
+      return { ...base, ...c, banners: Array.isArray(c.banners) ? c.banners : [], hero: { ...base.hero, ...(c.hero || {}) }, footer: { ...base.footer, ...(c.footer || {}) }, sections: { ...base.sections, ...(c.sections || {}) } };
     } catch { return base; }
   };
+  const STATS = path.resolve("dev", ".stats.json");
+  const readStats = () => { try { const s = JSON.parse(fs.readFileSync(STATS, "utf8")); return { produtos: s.produtos || {}, dias: s.dias || {} }; } catch { return { produtos: {}, dias: {} }; } };
+  const writeStats = (s) => fs.writeFileSync(STATS, JSON.stringify(s));
   const readBody = (req) => new Promise((res) => { const ch = []; req.on("data", (c) => ch.push(c)); req.on("end", () => res(Buffer.concat(ch))); });
 
   return {
@@ -29,6 +32,8 @@ export function adminMock() {
       // Na hospedagem o Apache serve /admin/ → index.html; no dev fazemos o mesmo.
       server.middlewares.use((req, _res, next) => {
         if (req.url === "/admin" || req.url === "/admin/") req.url = "/admin/index.html";
+        // Páginas de produto /p/<id>/ → o aplicativo de produto (na hospedagem o .htaccess faz o mesmo).
+        if (/^\/p\/[A-Za-z0-9-]+\/?(\?|$)/.test(req.url)) req.url = req.url.replace(/^\/p\/[A-Za-z0-9-]+\/?/, "/produto/");
         next();
       });
       server.middlewares.use("/admin/api.php", async (req, res) => {
@@ -45,7 +50,20 @@ export function adminMock() {
 
         switch (a) {
           case "ping": return send({ ok: true, php: "mock (Node)", gd: true, writable: { data: true, banners: true, logo: true } });
-          case "me": return send({ ok: true, auth: authed, csrf: authed ? csrf : null });
+          case "me": return send({ ok: true, auth: authed, csrf: authed ? csrf : null, defaultPassword: true });
+          case "track": {
+            const id = url.searchParams.get("id") || "";
+            if (!/^[a-z0-9-]{1,120}$/.test(id)) return send({ ok: false }, 400);
+            const st = readStats(); st.produtos[id] = { n: (st.produtos[id]?.n || 0) + 1, ultimo: new Date().toISOString() };
+            const dia = new Date().toISOString().slice(0, 10); st.dias[dia] = (st.dias[dia] || 0) + 1; writeStats(st);
+            return send({ ok: true });
+          }
+          case "stats": {
+            if (needAuth()) return;
+            const st = readStats();
+            const top = Object.entries(st.produtos).sort((a, b) => b[1].n - a[1].n).slice(0, 30).map(([id, v]) => ({ id, n: v.n, ultimo: v.ultimo }));
+            return send({ ok: true, top, total: Object.values(st.produtos).reduce((t, v) => t + v.n, 0), dias: st.dias });
+          }
           case "login": {
             const d = json();
             if (!(String(d.user || "").trim().toLowerCase() === DEFAULT_USER && bcrypt.compareSync(String(d.pass || ""), DEFAULT_HASH))) return send({ ok: false, error: "Usuário ou senha incorretos." }, 401);
@@ -55,7 +73,7 @@ export function adminMock() {
             return send({ ok: true, csrf: t });
           }
           case "logout": if (cookie) sessions.delete(cookie); return send({ ok: true });
-          case "get": if (needAuth()) return; return send({ ok: true, config: load(), maxBanners: MAX_BANNERS });
+          case "get": if (needAuth()) return; return send({ ok: true, config: load(), maxBanners: MAX_BANNERS, defaultPassword: true });
           case "save": {
             if (needAuth() || needCsrf()) return;
             const d = json();
@@ -77,6 +95,9 @@ export function adminMock() {
               whatsapp: wa, message: String(d.message || "").replace(/\r/g, "").slice(0, 1000),
               hero: { enabled: !!h.enabled, title: String(h.title || "").slice(0, 60), subtitle: String(h.subtitle || "").slice(0, 140) },
               photoStyle: d.photoStyle || "spotlight", updatedAt: new Date().toISOString(),
+              featured: [...new Set((d.featured || []).map(String).filter((x) => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, 24),
+              hidden: [...new Set((d.hidden || []).map(String).filter((x) => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, 1000),
+              sections: { featured: d.sections?.featured !== false, bestsellers: d.sections?.bestsellers !== false, news: d.sections?.news !== false },
               footer: (() => {
                 const f = d.footer || {};
                 const ig = String(f.instagram || "").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/[/?].*$/, "").replace(/^@/, "");

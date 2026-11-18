@@ -51,6 +51,33 @@ const line = (ok, text) => { console.log(`${ok ? "✔" : "✗"} ${text}`); retur
     ok = line(!r || r.status === 403 || r.status === 404, `protegido: ${p}  (${r ? r.status : "sem resposta"})`) && ok;
   }
 
+  // HTTPS obrigatório: o endereço http deve redirecionar para https.
+  if (base.startsWith("https://")) {
+    try {
+      const r = await fetch("http://" + base.slice(8) + "/", { redirect: "manual", signal: AbortSignal.timeout(15000) });
+      const loc = r.headers.get("location") || "";
+      ok = line(r.status >= 300 && r.status < 400 && loc.startsWith("https://"), `http → https  (${r.status}${loc ? " → " + loc : ""})`) && ok;
+    } catch { ok = line(false, "http → https: sem resposta") && ok; }
+  }
+
+  // Página de produto com prévia (WhatsApp/Google) + sitemap + robots.
+  const cat = await get("/data/catalog.json");
+  if (cat && cat.ok) {
+    const j = await cat.json().catch(() => null);
+    const first = j?.products?.[0];
+    if (first) {
+      const pr = await get(`/p/${first.id}/`);
+      const ph = pr && pr.ok ? await pr.text() : "";
+      const hasOg = /property="og:title"/.test(ph) && /application\/ld\+json/.test(ph);
+      if (j.store?.pages) ok = line(hasOg, `página com prévia: /p/${first.id}/  ${hasOg ? "(og:title e dados do Google presentes)" : "(SEM prévia: confira se a pasta p/ foi enviada e se o .htaccess é o novo)"}`) && ok;
+      else console.log("• páginas com prévia ainda não ativadas (defina o endereço do site no GoSync / SITE_URL no .deploy.env)");
+    }
+  }
+  for (const p of ["/sitemap.xml", "/robots.txt"]) {
+    const r = await get(p, { method: "HEAD" });
+    if (r && r.ok) line(true, `${p}  (${r.status})`); else console.log(`• ${p} ainda não existe (gerado junto com as páginas com prévia)`);
+  }
+
   // Esse HTML é de uma versão antiga? (cabeçalho antigo = envio incompleto)
   if (/class="topbar"/.test(html)) ok = line(false, "index.html é de uma versão ANTIGA (cabeçalho antigo): envie a pasta locaweb inteira, sobrescrevendo tudo") && ok;
 

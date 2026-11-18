@@ -76,6 +76,14 @@
   .ph.spotlight i { filter: drop-shadow(0 6px 5px rgba(0,0,0,.28)); }
   .ph.frame { background: #fff; border: 4px solid var(--primary); border-radius: 16px; }
   .ph.classic { background: #fafafd; border: 1px solid var(--line); }
+  .prod-list { display: grid; gap: 6px; }
+  .prod-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fcfcff; font-size: 13.5px; }
+  .prod-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .prod-row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .prod-row button { border: 1px solid var(--line); background: #fff; border-radius: 9px; padding: 4px 9px; cursor: pointer; font-size: 14px; }
+  .prod-row button.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, #fff); }
+  .warn { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 14px; padding: 12px 16px; font-weight: 600; }
+  .bar-n { height: 8px; border-radius: 99px; background: var(--primary); min-width: 4px; }
   .savebar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 12px; justify-content: center; padding: 12px; background: rgba(255,255,255,.95); border-top: 1px solid var(--line); backdrop-filter: blur(8px); }
   .dirty { color: #b45309; font-weight: 600; font-size: 13px; }
   #toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: #1b1f2e; color: #fff; padding: 10px 18px; border-radius: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; max-width: 90vw; }
@@ -105,6 +113,7 @@
     <button class="btn" id="logoutBtn">Sair</button>
   </header>
   <main>
+    <div class="warn" id="pwWarn" hidden>⚠️ Você ainda está usando a senha inicial. Troque agora na seção <b>Segurança</b> (no fim da página).</div>
     <section class="card">
       <h2>Identidade da loja</h2>
       <label>Nome da loja<input type="text" id="name" maxlength="60" placeholder="Minha Sapataria" /></label>
@@ -171,6 +180,32 @@
       <div class="banners" id="banners"></div>
       <div class="row"><button class="btn primary" id="addBanner">+ Adicionar banner</button></div>
       <input type="file" id="bannerFile" accept="image/*" multiple hidden />
+    </section>
+
+    <section class="card">
+      <h2>Página inicial</h2>
+      <p class="hint">Seções que aparecem acima da lista de produtos (só quando não há filtro ativo).</p>
+      <label class="check"><input type="checkbox" id="secFeatured" /> Destaques (os produtos que você escolher abaixo)</label>
+      <label class="check"><input type="checkbox" id="secBest" /> Mais vendidos (automático, últimos 90 dias do ERP)</label>
+      <label class="check"><input type="checkbox" id="secNews" /> Chegou agora (automático, cadastros mais recentes)</label>
+    </section>
+
+    <section class="card">
+      <h2>Destaques e produtos ocultos</h2>
+      <p class="hint">Busque um produto e marque ★ para destacar na página inicial (até 24) ou 🚫 para esconder do site sem mexer no ERP.</p>
+      <input type="text" id="prodSearch" placeholder="Buscar produto pelo nome…" autocomplete="off" />
+      <div id="prodResults" class="prod-list"></div>
+      <h4 style="margin:12px 0 0">★ Em destaque <span class="hint" id="featCount"></span></h4>
+      <div id="featList" class="prod-list"></div>
+      <h4 style="margin:12px 0 0">🚫 Ocultos <span class="hint" id="hidCount"></span></h4>
+      <div id="hidList" class="prod-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Mais pedidos pelo WhatsApp</h2>
+      <p class="hint">Contagem de cliques em "Pedir pelo WhatsApp" por produto (um clique = um pedido iniciado).</p>
+      <div class="row"><button class="btn" id="statsReload" type="button">Atualizar</button><span class="hint" id="statsTotal"></span></div>
+      <div id="statsList" class="prod-list"></div>
     </section>
 
     <section class="card">
@@ -255,6 +290,8 @@ function renderExtras() {
   $("#heroOn").checked = !!cfg.hero.enabled;
   $("#heroTitle").value = cfg.hero.title || "";
   $("#heroSub").value = cfg.hero.subtitle || "";
+  $("#secFeatured").checked = !!cfg.sections.featured; $("#secBest").checked = !!cfg.sections.bestsellers; $("#secNews").checked = !!cfg.sections.news;
+  renderProducts();
   $("#ftAbout").value = cfg.footer.about || "";
   $("#ftAddress").value = cfg.footer.address || "";
   $("#ftHours").value = cfg.footer.hours || "";
@@ -369,7 +406,7 @@ $("#bannerFile").onchange = async (e) => {
 };
 $("#saveBtn").onclick = async () => {
   $("#saveBtn").disabled = true;
-  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners, whatsapp: cfg.whatsapp, message: (cfg.message || "").trim() === DEFAULT_MESSAGE ? "" : cfg.message, hero: cfg.hero, photoStyle: cfg.photoStyle, footer: cfg.footer } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
+  try { const r = await call("save", { method: "POST", body: { name: cfg.name, primaryColor: cfg.primaryColor, logo: cfg.logo, banners: cfg.banners, whatsapp: cfg.whatsapp, message: (cfg.message || "").trim() === DEFAULT_MESSAGE ? "" : cfg.message, hero: cfg.hero, photoStyle: cfg.photoStyle, footer: cfg.footer, featured: cfg.featured, hidden: cfg.hidden, sections: cfg.sections } }); cfg = r.config; markDirty(false); render(); toast("Salvo! O site já mostra as mudanças.", "good"); }
   catch (err) { toast(err.message, "bad"); $("#saveBtn").disabled = false; }
 };
 $("#pwForm").onsubmit = async (e) => {
@@ -378,14 +415,88 @@ $("#pwForm").onsubmit = async (e) => {
   catch (err) { toast(err.message, "bad"); }
 };
 
+/* ----- destaques, ocultos e estatísticas ----- */
+let catalog = null;
+const byId = new Map();
+const normTxt = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+async function loadCatalog() {
+  try {
+    const j = await (await fetch("/data/catalog.json", { cache: "no-cache" })).json();
+    catalog = j.products || [];
+    byId.clear();
+    catalog.forEach((p) => byId.set(p.id, p));
+  } catch { catalog = []; }
+  renderProducts();
+}
+function toggleIn(list, id, max) {
+  const i = list.indexOf(id);
+  if (i >= 0) list.splice(i, 1);
+  else if (list.length < max) list.push(id);
+  else toast(`Limite de ${max} atingido.`, "bad");
+  markDirty(); renderProducts();
+}
+function prodRow(id, p, withButtons) {
+  const el = document.createElement("div");
+  el.className = "prod-row";
+  const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p ? p.name : id + " (fora do catálogo atual)"; nm.title = nm.textContent;
+  el.append(nm);
+  if (p) { const m = document.createElement("span"); m.className = "meta"; m.textContent = (p.categoryLabel || "") + (p.brand ? " · " + p.brand : ""); el.append(m); }
+  if (withButtons) {
+    const f = document.createElement("button"); f.type = "button"; f.textContent = "★"; f.title = "Destacar na página inicial"; f.className = cfg.featured.includes(id) ? "on" : ""; f.onclick = () => toggleIn(cfg.featured, id, 24);
+    const h = document.createElement("button"); h.type = "button"; h.textContent = "🚫"; h.title = "Ocultar do site"; h.className = cfg.hidden.includes(id) ? "on" : ""; h.onclick = () => toggleIn(cfg.hidden, id, 1000);
+    el.append(f, h);
+  } else {
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "✕"; x.title = "Remover da lista"; x.dataset.id = id; el.append(x);
+  }
+  return el;
+}
+function renderProducts() {
+  if (!cfg) return;
+  const q = normTxt($("#prodSearch").value.trim());
+  const res = $("#prodResults"); res.innerHTML = "";
+  if (q.length >= 2 && catalog) catalog.filter((p) => normTxt(p.name + " " + (p.brand || "")).includes(q)).slice(0, 12).forEach((p) => res.append(prodRow(p.id, p, true)));
+  const fill = (box, list, key) => {
+    box.innerHTML = "";
+    if (!list.length) { box.innerHTML = '<p class="hint">Nenhum.</p>'; return; }
+    list.forEach((id) => { const r = prodRow(id, byId.get(id), false); r.querySelector("button").onclick = () => { list.splice(list.indexOf(id), 1); markDirty(); renderProducts(); }; box.append(r); });
+  };
+  fill($("#featList"), cfg.featured); fill($("#hidList"), cfg.hidden);
+  $("#featCount").textContent = `(${cfg.featured.length}/24)`; $("#hidCount").textContent = `(${cfg.hidden.length})`;
+}
+async function loadStats() {
+  try {
+    const s = await call("stats");
+    const box = $("#statsList"); box.innerHTML = "";
+    $("#statsTotal").textContent = `${s.total} pedido(s) iniciado(s) no total`;
+    const max = Math.max(1, ...s.top.map((t) => t.n));
+    if (!s.top.length) box.innerHTML = '<p class="hint">Ainda não há cliques registrados.</p>';
+    s.top.forEach((t, i) => {
+      const p = byId.get(t.id);
+      const row = document.createElement("div"); row.className = "prod-row";
+      row.innerHTML = '<span class="meta" style="width:22px"></span><span class="nm"></span><div style="width:90px"><div class="bar-n"></div></div><b></b>';
+      row.children[0].textContent = i + 1 + "º"; row.children[1].textContent = p ? p.name : t.id; row.querySelector(".bar-n").style.width = Math.round((t.n / max) * 100) + "%"; row.querySelector("b").textContent = t.n;
+      box.append(row);
+    });
+  } catch (e) { $("#statsList").innerHTML = `<p class="hint">${e.message}</p>`; }
+}
+$("#prodSearch").oninput = renderProducts;
+$("#statsReload").onclick = loadStats;
+for (const [id, key] of [["#secFeatured", "featured"], ["#secBest", "bestsellers"], ["#secNews", "news"]]) {
+  $(id).onchange = (e) => { cfg.sections[key] = e.target.checked; markDirty(); };
+}
+
 async function load() {
   const r = await call("get");
   cfg = r.config; cfg.banners = cfg.banners || []; maxBanners = r.maxBanners || 6; $("#maxB").textContent = maxBanners;
   if (!cfg.primaryColor) cfg.primaryColor = "#a33a33";
   cfg.hero = Object.assign({ enabled: true, title: "", subtitle: "" }, cfg.hero || {});
   cfg.footer = Object.assign({ about: "", address: "", hours: "", phone: "", instagram: "" }, cfg.footer || {});
+  cfg.featured = Array.isArray(cfg.featured) ? cfg.featured : []; cfg.hidden = Array.isArray(cfg.hidden) ? cfg.hidden : [];
+  cfg.sections = Object.assign({ featured: true, bestsellers: true, news: true }, cfg.sections || {});
+  $("#pwWarn").hidden = !r.defaultPassword;
   cfg.whatsapp = cfg.whatsapp || ""; cfg.message = cfg.message || ""; cfg.photoStyle = cfg.photoStyle || "spotlight";
   render(); markDirty(false); show("panel");
+  loadCatalog(); loadStats();
 }
 
 (async () => {

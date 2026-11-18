@@ -4,7 +4,9 @@ import ProductDetail from "./ProductDetail";
 export default function ProductPage() {
   const s = useCatalog();
   const q = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-  const id = q.get("id");
+  // O id vem de /p/<id>/ (páginas com prévia) ou de /produto/?id=<id>.
+  const pathId = typeof location !== "undefined" ? /^\/p\/([^/]+)/.exec(location.pathname)?.[1] : undefined;
+  const id = q.get("id") ?? (pathId ? decodeURIComponent(pathId) : null);
   const color = q.get("cor") ?? undefined;
 
   if (s.status === "loading") return <div class="skeleton" style="height:520px" aria-busy="true" />;

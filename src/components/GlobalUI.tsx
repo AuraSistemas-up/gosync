@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { buildWhatsMessage, categoryName, cmpSize, useCatalog } from "../lib/catalog";
+import { categoryName, cmpSize, shareLink, trackOrder, useCatalog } from "../lib/catalog";
 import { favorites, ui, useFavorites } from "../lib/favorites";
 import type { Product } from "../types/product";
 import { brl } from "./ProductCard";
@@ -13,7 +13,7 @@ const WaIcon = () => (
 function orderMessage(lines: { p: Product; color: string; size: string }[], intro: string): string {
   const itens = lines.map((l, i) => {
     const price = l.p.promoPrice ?? l.p.price;
-    const link = `${location.origin}/produto/?id=${encodeURIComponent(l.p.id)}&cor=${encodeURIComponent(l.color)}&tam=${encodeURIComponent(l.size)}`;
+    const link = shareLink(l.p.id, l.color, l.size);
     const cor = l.p.variants.find((v) => v.colorSlug === l.color);
     return `${i + 1}) *${l.p.name}*${cor && cor.color !== "Único" ? ` · ${cor.color}` : ""} · Nº ${l.size} · ${brl(price)}\n${link}`;
   });
@@ -58,6 +58,7 @@ export default function GlobalUI() {
     const lines = items.map(({ f, p }) => ({ p, color: f.color ?? p.variants[0].colorSlug, size: f.size! }));
     const name = data.store?.name ? ` da ${data.store.name}` : "";
     const msg = orderMessage(lines, `Olá! Quero fazer este pedido${name}:`);
+    for (const l of lines) trackOrder(l.p.id);
     window.open(`https://wa.me/${data.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
   };
 

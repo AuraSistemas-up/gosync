@@ -6,6 +6,8 @@ const ftp = require("basic-ftp");
 const { app, nativeImage } = require("electron");
 const { fetchRaw, groupProducts } = require("./erp");
 const { readFirebird } = require("./firebird");
+const { generate, fetchHidden } = require("./pages");
+const sha1 = (s) => crypto.createHash("sha1").update(s).digest("hex");
 
 const EXT = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" };
 const posix = path.posix;
@@ -138,6 +140,21 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
     photoNames = new Set(Object.values(state.photos));
   }
 
+  // Páginas por produto (prévia no WhatsApp/Google), sitemap e robots: só se o endereço do site estiver configurado.
+  let seo = null;
+  if (cfg.siteUrl) {
+    const candidates = [path.join(process.resourcesPath || "", "site", "produto", "index.html"), path.join(cfg.siteDir || "", "dist", "produto", "index.html")];
+    const tpl = candidates.find((f) => fs.existsSync(f));
+    if (tpl) {
+      const hidden = await fetchHidden(cfg.siteUrl);
+      seo = generate({ template: fs.readFileSync(tpl, "utf8"), products, siteUrl: cfg.siteUrl, storeName: cfg.storeName || "", hidden });
+      seo.pages = seo.pages.filter((p) => /^[a-z0-9-]+$/.test(p.id));
+    } else {
+      log("Molde da página de produto não encontrado: páginas com prévia puladas (use Publicar/atualizar o site).");
+    }
+  }
+  state.pages ??= {};
+
   // Banners do carrossel: imagens da pasta configurada (ordem alfabética, até 6), com nome = hash do conteúdo.
   const banners = [];
   const bannerFiles = []; // {name, file}
@@ -171,14 +188,17 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const catalog = {
     updatedAt: new Date().toISOString(),
     whatsapp: String(cfg.whatsapp || "").replace(/\D/g, ""),
-    store: { name: cfg.storeName || undefined, primaryColor: /^#[0-9a-f]{6}$/i.test(cfg.primaryColor || "") ? cfg.primaryColor : undefined, banners },
+    store: { name: cfg.storeName || undefined, primaryColor: /^#[0-9a-f]{6}$/i.test(cfg.primaryColor || "") ? cfg.primaryColor : undefined, banners, pages: seo ? true : undefined },
     products,
   };
   const hash = crypto.createHash("sha1").update(JSON.stringify({ ...catalog, updatedAt: 0 })).digest("hex");
 
   const pendentes = [...photoNames].filter((n) => !state.uploaded[n]);
+  const pagesPendentes = seo ? seo.pages.filter((p) => state.pages[p.id] !== p.hash) : [];
+  const seoHash = seo ? sha1(seo.sitemap + seo.robots) : null;
+  const seoMudou = !!seo && seoHash !== state.seoHash;
   const bannersPendentes = bannerFiles.filter((b) => !state.uploaded["b/" + b.name]);
-  if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0) {
+  if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0 && pagesPendentes.length === 0 && !seoMudou) {
     saveState(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
     return { changed: false, models: products.length, photos: 0, failedPhotos: falhas };
@@ -210,6 +230,22 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
         await client.uploadFrom(b.file, posix.join(root, "banners", b.name));
         state.uploaded["b/" + b.name] = true;
       }
+    }
+    if (seo && (pagesPendentes.length || seoMudou)) {
+      const { Readable } = require("stream");
+      if (pagesPendentes.length) {
+        log(`Enviando ${pagesPendentes.length} página(s) de produto…`);
+        await client.ensureDir(posix.join(root, "p"));
+        let n = 0;
+        for (const pg of pagesPendentes) {
+          await client.uploadFrom(Readable.from([pg.html]), posix.join(root, "p", `${pg.id}.html`));
+          state.pages[pg.id] = pg.hash;
+          if (++n % 100 === 0) { saveState(state); log(`  ${n}/${pagesPendentes.length} páginas enviadas…`); }
+        }
+      }
+      await client.uploadFrom(Readable.from([seo.sitemap]), posix.join(root, "sitemap.xml"));
+      await client.uploadFrom(Readable.from([seo.robots]), posix.join(root, "robots.txt"));
+      state.seoHash = seoHash;
     }
     log("Enviando catálogo…");
     await client.ensureDir(posix.join(root, "data"));
@@ -283,6 +319,8 @@ function resetPhotoCache() {
   const s = loadState();
   s.photos = {};
   s.fbPhotos = {};
+  s.pages = {};
+  s.seoHash = null;
   s.uploaded = {};
   s.lastHash = null;
   saveState(s);

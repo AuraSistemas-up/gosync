@@ -1,5 +1,6 @@
+import { useState } from "preact/hooks";
 import type { Product } from "../types/product";
-import { categoryName, cmpSize } from "../lib/catalog";
+import { categoryName, cmpSize, pagesEnabled, salesKnown } from "../lib/catalog";
 import Photo from "./Photo";
 import { favorites, useFavorites } from "../lib/favorites";
 
@@ -13,10 +14,15 @@ interface Props {
   onOpen?: (product: Product, colorSlug: string) => void;
 }
 
+const LOW_STOCK = 3; // "Últimas unidades" quando o estoque total do modelo é este número ou menos
+const NEW_DAYS = 30; // "Novo" quando cadastrado há até estes dias
+
 export default function ProductCard({ product, size, onOpen }: Props) {
   const fav = useFavorites().some((x) => x.id === product.id);
+  const [ci, setCi] = useState(0);
   const withSize = size ? product.variants.filter((v) => v.sizes.some((s) => s.size === size && s.stock > 0)) : product.variants;
-  const v = withSize[0] ?? product.variants[0];
+  const list = withSize.length ? withSize : product.variants;
+  const v = list[Math.min(ci, list.length - 1)];
 
   // Numerações com estoque em qualquer cor.
   const sizes = [...new Set(product.variants.flatMap((x) => x.sizes.filter((s) => s.available).map((s) => s.size)))].sort(cmpSize);
@@ -24,7 +30,11 @@ export default function ProductCard({ product, size, onOpen }: Props) {
   if (size && sizes.includes(size) && !shown.includes(size)) shown[shown.length - 1] = size;
 
   const discount = product.promoPrice ? Math.round((1 - product.promoPrice / product.price) * 100) : 0;
-  const href = `/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`;
+  const totalStock = product.variants.reduce((t, x) => t + x.totalStock, 0);
+  // Só marca "Últimas unidades" quando o modelo está acabando E vende (evita o selo em metade da loja).
+  const lowStock = totalStock > 0 && totalStock <= LOW_STOCK && (!salesKnown() || (product.sold ?? 0) > 0);
+  const isNew = !!product.added && Date.now() - new Date(product.added).getTime() <= NEW_DAYS * 86400000;
+  const href = pagesEnabled() ? `/p/${encodeURIComponent(product.id)}/?cor=${v.colorSlug}` : `/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`;
 
   return (
     <a
@@ -39,7 +49,13 @@ export default function ProductCard({ product, size, onOpen }: Props) {
     >
       <div class="card-photo">
         {v.image ? <Photo src={v.image} alt={`${product.name} ${v.color}`} mode="card" /> : <span class="no-photo">Sem foto</span>}
-        {discount > 0 && <span class="badge-off">-{discount}%</span>}
+        {(discount > 0 || lowStock || isNew) && (
+          <div class="badges">
+            {discount > 0 && <span class="badge-off">Oferta -{discount}%</span>}
+            {isNew && <span class="badge-new">Novo</span>}
+            {lowStock && <span class="badge-low">{totalStock === 1 ? "Última unidade" : "Últimas unidades"}</span>}
+          </div>
+        )}
         <button
           type="button"
           class={`heart${fav ? " on" : ""}`}
@@ -60,6 +76,27 @@ export default function ProductCard({ product, size, onOpen }: Props) {
           {product.category && <span class="pill" style="opacity:.75">{categoryName(product)}</span>}
         </div>
         <h3 class="card-title" style="margin:0">{product.name}</h3>
+
+        {list.length > 1 && (
+          <div class="swatches" role="group" aria-label="Cores">
+            {list.slice(0, 5).map((x, i) => (
+              <button
+                key={x.colorSlug}
+                type="button"
+                class={`swatch${i === Math.min(ci, list.length - 1) ? " on" : ""}`}
+                title={x.color}
+                aria-label={`Cor ${x.color}`}
+                onMouseEnter={() => setCi(i)}
+                onFocus={() => setCi(i)}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCi(i); }}
+              >
+                {x.image ? <Photo src={x.image} alt="" mode="tiny" /> : <span>{x.color.charAt(0)}</span>}
+              </button>
+            ))}
+            {list.length > 5 && <span class="swatch-more">+{list.length - 5}</span>}
+          </div>
+        )}
+
         <div class="card-sizes">
           <span class="card-sizes-label">Nº</span>
           {shown.map((s) => (

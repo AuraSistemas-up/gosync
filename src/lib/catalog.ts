@@ -9,6 +9,35 @@ export type CatalogState =
 // Uma única requisição por página, compartilhada entre cabeçalho, catálogo e produto.
 let pending: Promise<CatalogFile> | null = null;
 
+let pagesOn = false;
+export const pagesEnabled = () => pagesOn;
+let salesOn = false;
+/** O catálogo traz dados de venda? (usado para só marcar "Últimas unidades" nos modelos que realmente vendem) */
+export const salesKnown = () => salesOn;
+
+/** Conta um pedido iniciado pelo WhatsApp (aparece em "Mais pedidos" no painel). Uma vez por produto por visita. */
+export function trackOrder(id: string) {
+  try {
+    const key = `gosync:pedido:${id}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch { /* sem armazenamento: conta mesmo assim */ }
+  const url = `/admin/api.php?a=track&id=${encodeURIComponent(id)}`;
+  try {
+    if (!navigator.sendBeacon?.(url)) fetch(url, { method: "POST", keepalive: true });
+  } catch { /* a contagem nunca pode atrapalhar o pedido */ }
+}
+
+/** Link para COMPARTILHAR um produto. Com as páginas de prévia ativas (/p/<id>/) o WhatsApp mostra foto e preço. */
+export function shareLink(id: string, color?: string, size?: string): string {
+  const q = new URLSearchParams();
+  if (!pagesOn) q.set("id", id);
+  if (color) q.set("cor", color);
+  if (size) q.set("tam", size);
+  const qs = q.toString();
+  return `${location.origin}${pagesOn ? `/p/${encodeURIComponent(id)}/` : "/produto/"}${qs ? "?" + qs : ""}`;
+}
+
 /** Mensagem padrão do WhatsApp (já com o link do produto). Placeholders: {produto} {sku} {cor} {numeracao} {valor} {link}. */
 export const DEFAULT_MESSAGE =
   "Olá! Quero pedir este calçado:\n*Modelo:* {produto}\n*Ref/SKU:* {sku}\n*Cor:* {cor}\n*Numeração:* {numeracao}\n*Valor:* {valor}\n*Link:* {link}";
@@ -41,6 +70,9 @@ type Cfg = {
   hero?: { enabled?: boolean; title?: string; subtitle?: string };
   photoStyle?: "classic" | "spotlight" | "frame";
   footer?: { about?: string; address?: string; hours?: string; phone?: string; instagram?: string };
+  featured?: string[];
+  hidden?: string[];
+  sections?: { featured?: boolean; bestsellers?: boolean; news?: boolean };
 };
 
 /** Configurações do painel admin (/data/config.json). Opcional. */
@@ -73,6 +105,13 @@ function load(): Promise<CatalogFile> {
         if (cfg.hero) s.hero = cfg.hero;
         if (cfg.photoStyle) s.photoStyle = cfg.photoStyle;
         if (cfg.footer && Object.values(cfg.footer).some(Boolean)) s.footer = cfg.footer;
+        if (cfg.featured?.length) s.featured = cfg.featured;
+        if (cfg.sections) s.sections = cfg.sections;
+        if (cfg.hidden?.length) {
+          // Produtos ocultos no painel somem do site inteiro (lista, busca, favoritos…).
+          const hide = new Set(cfg.hidden);
+          data.products = data.products.filter((p) => !hide.has(p.id));
+        }
         if (cfg.whatsapp) data.whatsapp = cfg.whatsapp.replace(/\D/g, "");
         data.store = s;
       }
@@ -89,6 +128,8 @@ function load(): Promise<CatalogFile> {
 function applyTheme(data: CatalogFile) {
   const { name, primaryColor, logo, photoStyle } = data.store ?? {};
   document.documentElement.dataset.photo = photoStyle ?? "spotlight"; // estilo de destaque das fotos (CSS)
+  pagesOn = !!data.store?.pages;
+  salesOn = data.products.some((p) => (p.sold ?? 0) > 0);
   if (primaryColor && /^#[0-9a-f]{6}$/i.test(primaryColor)) document.documentElement.style.setProperty("--primary", primaryColor);
   if (logo) {
     const img = document.getElementById("brandLogo") as HTMLImageElement | null;

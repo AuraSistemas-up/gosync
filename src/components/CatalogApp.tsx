@@ -22,6 +22,6 @@ export default function CatalogApp() {
       </div>
     );
   return (
-    <Catalog products={s.data.products} whatsapp={s.data.whatsapp} message={s.data.store?.message} banners={s.data.store?.banners} />
+    <Catalog products={s.data.products} whatsapp={s.data.whatsapp} message={s.data.store?.message} banners={s.data.store?.banners} featured={s.data.store?.featured} sections={s.data.store?.sections} />
   );
 }

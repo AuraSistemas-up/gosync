@@ -3,6 +3,8 @@ import type { Product } from "../types/product";
 import { categoryName, cmpSize, label, listCategories } from "../lib/catalog";
 import ProductCard from "./ProductCard";
 import ProductModal from "./ProductModal";
+import { matchesQuery } from "../lib/search";
+import Showcase from "./Showcase";
 import Banners, { type Banner } from "./Banners";
 
 const PAGE_SIZE = 24;
@@ -45,10 +47,8 @@ function matches(p: Product, f: F, skip?: keyof F): boolean {
   }
   // Estoque maior que zero na numeração escolhida, em qualquer cor.
   if (skip !== "size" && f.size && !p.variants.some((v) => v.sizes.some((s) => s.size === f.size && s.stock > 0))) return false;
-  if (skip !== "q" && f.q.trim()) {
-    const hay = norm([p.name, p.brand, categoryName(p), ...p.variants.flatMap((v) => v.sizes.map((s) => s.sku))].filter(Boolean).join(" "));
-    if (!norm(f.q).split(/\s+/).every((t) => hay.includes(t))) return false;
-  }
+  // Busca esperta: ignora acento e tolera 1–2 letras erradas ("sandalha" acha "sandália").
+  if (skip !== "q" && f.q.trim() && !matchesQuery(p, f.q)) return false;
   return true;
 }
 
@@ -92,7 +92,16 @@ function Section({ title, icon, badge, open, onToggle, children }: { title: stri
   );
 }
 
-export default function Catalog({ products, whatsapp = "", message, banners }: { products: Product[]; whatsapp?: string; message?: string; banners?: Banner[] }) {
+interface CatalogProps {
+  products: Product[];
+  whatsapp?: string;
+  message?: string;
+  banners?: Banner[];
+  featured?: string[];
+  sections?: { featured?: boolean; bestsellers?: boolean; news?: boolean };
+}
+
+export default function Catalog({ products, whatsapp = "", message, banners, featured, sections }: CatalogProps) {
   const [f, setF] = useState<F>(() => readUrl());
   // Produto aberto no pop-up (também vai para a URL: ?p=<id>&c=<cor>).
   const [open, setOpen] = useState<{ id: string; color?: string } | null>(() => {
@@ -168,6 +177,23 @@ export default function Catalog({ products, whatsapp = "", message, banners }: {
 
   const catName = f.cat ? categories.find((c) => c.slug === f.cat)?.name : null;
   const title = f.q ? `Resultados para “${f.q}”` : catName ?? "Todos os produtos";
+
+  // Seções da página inicial (só na 1ª página e sem filtros): destaques escolhidos, mais vendidos e novidades.
+  const showSections = active === 0 && cur === 1;
+  const openFromShowcase = (p: Product, color: string) => setOpen({ id: p.id, color });
+  const featList = useMemo(() => {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return (featured ?? []).map((id) => byId.get(id)).filter((p): p is Product => !!p).slice(0, 24);
+  }, [products, featured]);
+  const bestList = useMemo(() => products.filter((p) => (p.sold ?? 0) > 0).sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0)).slice(0, 12), [products]);
+  const newList = useMemo(() => {
+    // "Chegou agora": cadastros dentro dos 60 dias mais recentes do próprio catálogo.
+    const dated = products.filter((p) => p.added);
+    if (!dated.length) return [];
+    const newest = dated.reduce((m, p) => (p.added! > m ? p.added! : m), "");
+    const limit = new Date(new Date(newest).getTime() - 60 * 86400000).toISOString().slice(0, 10);
+    return dated.filter((p) => p.added! >= limit).sort((a, b) => b.added!.localeCompare(a.added!)).slice(0, 12);
+  }, [products]);
 
   // Filtros ativos como "chips" removíveis acima dos produtos.
   const chips: { key: string; label: string; clear: () => void }[] = [];
@@ -267,6 +293,16 @@ export default function Catalog({ products, whatsapp = "", message, banners }: {
         )}
 
         <Banners banners={banners} />
+
+        {showSections && sections?.featured !== false && featList.length > 0 && (
+          <Showcase title="Destaques" tag="Escolhidos a dedo" products={featList} size={f.size} onOpen={openFromShowcase} />
+        )}
+        {showSections && sections?.bestsellers !== false && bestList.length >= 3 && (
+          <Showcase title="Mais vendidos" tag="Últimos 90 dias" products={bestList} size={f.size} onOpen={openFromShowcase} />
+        )}
+        {showSections && sections?.news !== false && newList.length >= 3 && (
+          <Showcase title="Chegou agora" tag="Novidades" products={newList} size={f.size} onOpen={openFromShowcase} />
+        )}
 
         <div class="content-header">
           <h1 class="breadcrumb" style="margin:0">{title}</h1>
