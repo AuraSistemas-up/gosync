@@ -12,4 +12,6 @@ execSync("npm run build", { cwd: root, stdio: "inherit" });
 
 fs.rmSync(target, { recursive: true, force: true });
 fs.cpSync(path.join(root, "dist"), target, { recursive: true });
+// Nunca embutir dados de exemplo: o catálogo real vem do ERP.
+fs.rmSync(path.join(target, "data"), { recursive: true, force: true });
 console.log("Site embutido em", target);

@@ -6,3 +6,4 @@ tray/dist/
 tray/site-dist/
 tray/node_modules/
 *.log
+public/data/
