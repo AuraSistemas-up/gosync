@@ -10,6 +10,7 @@ const DEFAULTS = {
   fbHost: "127.0.0.1",
   fbPort: 3050,
   fbClient: "", // vazio = detecta o fbclient.dll automaticamente
+  fbTipos: "N,G", // PRD_TIPO_PRODUTO publicados: N = normal, G = grade (com variações)
   erpUrl: "",
   erpToken: "",
   whatsapp: "",

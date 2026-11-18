@@ -73,13 +73,21 @@ const cmpSize = (a, b) => {
  * @param log       (texto) => void
  * @returns Product[] já agrupado, no formato de src/types/product.ts
  */
-async function buildProducts({ q, photoUrl, log = () => {} }) {
-  log("Lendo produtos…");
+async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }) {
+  // REGRA DE PUBLICAÇÃO: PRD_STATUS = 'A' (ativo) E PRD_EXPORTAR = 'S' E PRD_TIPO_PRODUTO nos tipos permitidos
+  // (N = normal, G = grade com variações; padrão "N,G") E com estoque > 0.
+  const tiposList = (Array.isArray(tipos) ? tipos : String(tipos).split(/[,;\s]+/))
+    .map((t) => String(t).trim().toUpperCase())
+    .filter((t) => /^[A-Z0-9]$/.test(t)); // só 1 caractere alfanumérico: seguro para entrar no SQL
+  if (!tiposList.length) throw new Error("Nenhum tipo de produto válido informado (ex.: N,G).");
+  const TIPO = `p.PRD_TIPO_PRODUTO IN (${tiposList.map((t) => `'${t}'`).join(", ")})`;
+
+  log(`Lendo produtos (ativos, exportar=S, tipo ${tiposList.join("/")}, com estoque)…`);
   const STOCK = "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)";
   const prods = await q(`
     SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, p.PRD_IMAGEM
     FROM TB_PRODUTO p LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
-    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${STOCK}`);
+    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
 
   const stockRows = await q(`SELECT PRDE_PRODUTO AS P, COALESCE(PRDE_VARIACAO, 0) AS V, SUM(PRDE_ESTOQUE) AS S FROM TB_PRODUTO_ESTOQUE WHERE PRDE_ESTOQUE > 0 GROUP BY 1, 2`);
   const stock = new Map(); // "p:v" → qtd
@@ -93,14 +101,14 @@ async function buildProducts({ q, photoUrl, log = () => {} }) {
   const vars = await q(`
     SELECT v.PRV_PRODUTO AS P, v.PRV_ID AS V, v.PRV_DESCRICAO AS D, v.PRV_REFERENCIA AS REF, v.PRV_PRECO AS PRECO, v.PRV_IMAGEM AS IMG
     FROM TB_PRODUTO_VARIACAO v JOIN TB_PRODUTO p ON p.PRD_ID = v.PRV_PRODUTO
-    WHERE v.PRV_STATUS = 'A' AND p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${STOCK}`);
+    WHERE v.PRV_STATUS = 'A' AND p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
   const attrs = await q(`
     SELECT pva.PVA_PRODUTO AS P, pva.PVA_VARIACAO AS V, t.TAT_DESCRICAO AS TIPO, a.ATR_DESCRICAO AS ATR
     FROM TB_PROD_VARIACAO_ATRIBUTO pva
     JOIN TB_ATRIBUTO a ON a.ATR_ID = pva.PVA_ATRIBUTO
     JOIN TB_TIPO_ATRIBUTO t ON t.TAT_ID = a.ATR_TIPO_ATRIBUTO
     JOIN TB_PRODUTO p ON p.PRD_ID = pva.PVA_PRODUTO
-    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${STOCK}`);
+    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
 
   const attrByVar = new Map();
   for (const a of attrs) {

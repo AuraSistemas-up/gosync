@@ -88,7 +88,7 @@ const { buildProducts } = require("../tray/lib/firebird-model.js"); // consultas
     return url;
   }
 
-  const products = await buildProducts({ q, photoUrl, log: console.log });
+  const products = await buildProducts({ q, photoUrl, log: console.log, tipos: env.FB_TIPOS || "N,G" });
   await tx.commit();
   await att.disconnect();
   await client.dispose();

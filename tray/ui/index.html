@@ -131,8 +131,9 @@
             <label>Servidor<input type="text" name="fbHost" placeholder="127.0.0.1" /></label>
             <label style="max-width:110px">Porta<input type="number" name="fbPort" placeholder="3050" /></label>
           </div>
+          <label>Tipos de produto publicados (PRD_TIPO_PRODUTO)<input type="text" name="fbTipos" placeholder="N,G" /></label>
           <div class="actions"><button type="button" class="ghost" id="testFb">Testar banco</button></div>
-          <p class="note">Leitura somente (nada é alterado no ERP). São publicados só produtos ativos, marcados para exportar e com estoque.</p>
+          <p class="note">Leitura somente (nada é alterado no ERP). Regra: só produtos com <b>PRD_STATUS = A</b> (ativo), <b>PRD_EXPORTAR = S</b>, tipo N/G (conforme o campo acima) e <b>estoque &gt; 0</b>.</p>
         </div>
 
         <div id="restBox" style="display:none;gap:10px">
