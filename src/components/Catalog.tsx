@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Product } from "../types/product";
-import { categoryName, label, listCategories } from "../lib/catalog";
+import { categoryName, cmpSize, label, listCategories } from "../lib/catalog";
 import ProductCard from "./ProductCard";
 
 const PAGE_SIZE = 24;
@@ -96,7 +96,7 @@ export default function Catalog({ products }: { products: Product[] }) {
     const s = new Set<string>();
     for (let n = 34; n <= 44; n++) s.add(String(n));
     products.forEach((p) => p.variants.forEach((v) => v.sizes.forEach((x) => s.add(x.size))));
-    return [...s].sort((a, b) => Number(a) - Number(b));
+    return [...s].sort(cmpSize);
   }, [products]);
 
   // Contadores de cada faceta, respeitando os demais filtros.
@@ -110,7 +110,10 @@ export default function Catalog({ products }: { products: Product[] }) {
       discount: (a, b) => off(b) - off(a),
       name: (a, b) => a.name.localeCompare(b.name, "pt-BR"),
     };
-    return by[sort] ? [...list].sort(by[sort]) : list;
+    if (by[sort]) return [...list].sort(by[sort]);
+    // Relevância: modelos com foto primeiro (vitrine mais bonita), depois por nome.
+    const hasPhoto = (p: Product) => (p.variants.some((v) => v.image) ? 0 : 1);
+    return [...list].sort((a, b) => hasPhoto(a) - hasPhoto(b) || a.name.localeCompare(b.name, "pt-BR"));
   }, [products, f, sort]);
 
   const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));

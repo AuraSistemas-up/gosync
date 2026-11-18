@@ -179,7 +179,10 @@ async function publishSite(cfg, { log = () => {} } = {}) {
   }
   if (!fs.existsSync(path.join(dist, "index.html"))) throw new Error("Site sem index.html");
   // Nunca enviar dados de exemplo por cima do catálogo real (build local de teste).
-  if (dist !== bundled) fs.rmSync(path.join(dist, "data"), { recursive: true, force: true });
+  if (dist !== bundled) {
+    fs.rmSync(path.join(dist, "data"), { recursive: true, force: true });
+    fs.rmSync(path.join(dist, "fotos"), { recursive: true, force: true });
+  }
 
   const client = await openFtp(cfg);
   try {

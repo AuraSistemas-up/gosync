@@ -1,5 +1,5 @@
 import type { Product } from "../types/product";
-import { categoryName } from "../lib/catalog";
+import { categoryName, cmpSize } from "../lib/catalog";
 
 export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -14,9 +14,7 @@ export default function ProductCard({ product, size }: Props) {
   const v = withSize[0] ?? product.variants[0];
 
   // Numerações com estoque em qualquer cor.
-  const sizes = [...new Set(product.variants.flatMap((x) => x.sizes.filter((s) => s.available).map((s) => s.size)))].sort(
-    (a, b) => Number(a) - Number(b),
-  );
+  const sizes = [...new Set(product.variants.flatMap((x) => x.sizes.filter((s) => s.available).map((s) => s.size)))].sort(cmpSize);
   const shown = sizes.slice(0, 5);
   if (size && sizes.includes(size) && !shown.includes(size)) shown[shown.length - 1] = size;
 

@@ -57,9 +57,25 @@ export const categoryName = (p: Pick<Product, "category" | "categoryLabel">) =>
 
 export const label = cap;
 
+/** Ordena numerações: números primeiro (34, 35, 36/37), depois textos (P, M, Único). */
+export const cmpSize = (a: string, b: string) => {
+  const na = parseFloat(a), nb = parseFloat(b);
+  if (!isNaN(na) && !isNaN(nb)) return na - nb || a.localeCompare(b);
+  if (!isNaN(na)) return -1;
+  if (!isNaN(nb)) return 1;
+  return a.localeCompare(b, "pt-BR");
+};
+
 /** Lista de grupos (slug + nome) presentes no catálogo, em ordem alfabética. */
 export function listCategories(products: Product[]) {
-  const map = new Map<string, string>();
-  for (const p of products) if (p.category && !map.has(p.category)) map.set(p.category, categoryName(p));
-  return [...map].map(([slug, name]) => ({ slug, name })).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const map = new Map<string, { name: string; n: number }>();
+  for (const p of products) {
+    if (!p.category) continue;
+    const e = map.get(p.category) ?? map.set(p.category, { name: categoryName(p), n: 0 }).get(p.category)!;
+    e.n++;
+  }
+  // Grupos com mais modelos primeiro; "Outros" sempre por último.
+  return [...map]
+    .map(([slug, e]) => ({ slug, name: e.name, n: e.n }))
+    .sort((a, b) => (a.slug === "outros" ? 1 : b.slug === "outros" ? -1 : b.n - a.n || a.name.localeCompare(b.name, "pt-BR")));
 }

@@ -7,3 +7,5 @@ tray/site-dist/
 tray/node_modules/
 *.log
 public/data/
+public/fotos/
+.fb.env

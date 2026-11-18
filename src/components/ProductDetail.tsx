@@ -38,7 +38,7 @@ export default function ProductDetail({ product, whatsapp, initialColor }: Props
         "Olá! Quero pedir este calçado:",
         `*Modelo:* ${product.name}`,
         `*Ref/SKU:* ${selected.sku}`,
-        `*Cor:* ${v.color}`,
+        ...(v.color !== "Único" ? [`*Cor:* ${v.color}`] : []),
         `*Numeração:* ${selected.size}`,
         `*Valor:* ${brl(price)}`,
       ].join("\n")
@@ -75,8 +75,8 @@ export default function ProductDetail({ product, whatsapp, initialColor }: Props
           {product.promoPrice && <span class="pm-old">{brl(product.price)}</span>}
         </div>
         <div class="pm-selected">
-          Cor: <strong>{v.color}</strong>
-          {size ? <> · Nº <strong>{size}</strong></> : null}
+          {v.color !== "Único" && <>Cor: <strong>{v.color}</strong> · </>}
+          {size ? <>Nº <strong>{size}</strong></> : "Escolha a numeração"}
           {selected && <> · Ref. <strong>{selected.sku}</strong></>}
         </div>
 
