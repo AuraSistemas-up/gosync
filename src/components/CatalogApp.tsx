@@ -21,5 +21,5 @@ export default function CatalogApp() {
         </div>
       </div>
     );
-  return <Catalog products={s.data.products} />;
+  return <Catalog products={s.data.products} whatsapp={s.data.whatsapp} banners={s.data.store?.banners} />;
 }

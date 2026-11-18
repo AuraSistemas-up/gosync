@@ -7,6 +7,7 @@ interface Props {
   product: Product;
   whatsapp: string; // só dígitos, com DDI (ex.: 5511999998888)
   initialColor?: string;
+  initialSize?: string | null;
 }
 
 const WaIcon = () => (
@@ -15,22 +16,39 @@ const WaIcon = () => (
   </svg>
 );
 
-export default function ProductDetail({ product, whatsapp, initialColor }: Props) {
+export default function ProductDetail({ product, whatsapp, initialColor, initialSize }: Props) {
   const start = Math.max(0, product.variants.findIndex((v) => v.colorSlug === initialColor));
+  const startSize = initialSize && product.variants[start].sizes.some((s) => s.size === initialSize && s.available) ? initialSize : null;
+  const photosOf = (i: number) => {
+    const x = product.variants[i];
+    return x.images.length ? x.images : x.image ? [x.image] : [];
+  };
+  // Foto da variação (numeração) quando existir; senão a foto principal da cor.
+  const photoFor = (i: number, sz: string | null) => {
+    const img = sz ? product.variants[i].sizes.find((s) => s.size === sz)?.image : undefined;
+    const idx = img ? photosOf(i).indexOf(img) : -1;
+    return idx >= 0 ? idx : 0;
+  };
+
   const [vIdx, setVIdx] = useState(start);
-  const [photo, setPhoto] = useState(0);
-  const [size, setSize] = useState<string | null>(null);
+  const [size, setSize] = useState<string | null>(startSize);
+  const [photo, setPhoto] = useState(() => photoFor(start, startSize));
 
   const v = product.variants[vIdx];
-  const photos = v.images.length ? v.images : v.image ? [v.image] : [];
+  const photos = photosOf(vIdx);
   const price = product.promoPrice ?? product.price;
   const selected = v.sizes.find((s) => s.size === size && s.available);
 
   const pickColor = (i: number) => {
-    setVIdx(i);
-    setPhoto(0);
     // Mantém a numeração só se existir com estoque na nova cor.
-    if (size && !product.variants[i].sizes.some((s) => s.size === size && s.available)) setSize(null);
+    const keep = size && product.variants[i].sizes.some((s) => s.size === size && s.available) ? size : null;
+    setVIdx(i);
+    setSize(keep);
+    setPhoto(photoFor(i, keep));
+  };
+  const pickSize = (s: string) => {
+    setSize(s);
+    setPhoto(photoFor(vIdx, s)); // troca para a foto da variação escolhida
   };
 
   const message = selected
@@ -100,7 +118,7 @@ export default function ProductDetail({ product, whatsapp, initialColor }: Props
             {v.sizes.map((s) => (
               <button key={s.sku} type="button" disabled={!s.available} class={`pm-size${s.size === size ? " active" : ""}`}
                 aria-pressed={s.size === size} aria-label={s.available ? `Tamanho ${s.size}` : `Tamanho ${s.size}, esgotado`}
-                onClick={() => setSize(s.size)}>
+                onClick={() => pickSize(s.size)}>
                 {s.size}
               </button>
             ))}

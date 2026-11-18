@@ -101,16 +101,30 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
       v.image = v.images[0];
     }
 
+  // Banners do carrossel: imagens da pasta configurada (ordem alfabética, até 6), com nome = hash do conteúdo.
+  const banners = [];
+  const bannerFiles = []; // {name, file}
+  if (cfg.bannersDir && fs.existsSync(cfg.bannersDir)) {
+    const files = fs.readdirSync(cfg.bannersDir).filter((f) => /\.(jpe?g|png|webp)$/i.test(f)).sort().slice(0, 6);
+    for (const f of files) {
+      const file = path.join(cfg.bannersDir, f);
+      const name = crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex").slice(0, 16) + path.extname(f).toLowerCase();
+      bannerFiles.push({ name, file });
+      banners.push({ image: `/banners/${name}` });
+    }
+  }
+
   const catalog = {
     updatedAt: new Date().toISOString(),
     whatsapp: String(cfg.whatsapp || "").replace(/\D/g, ""),
-    store: { name: cfg.storeName || undefined, primaryColor: /^#[0-9a-f]{6}$/i.test(cfg.primaryColor || "") ? cfg.primaryColor : undefined },
+    store: { name: cfg.storeName || undefined, primaryColor: /^#[0-9a-f]{6}$/i.test(cfg.primaryColor || "") ? cfg.primaryColor : undefined, banners },
     products,
   };
   const hash = crypto.createHash("sha1").update(JSON.stringify({ ...catalog, updatedAt: 0 })).digest("hex");
 
   const pendentes = [...new Set(Object.values(state.photos))].filter((n) => !state.uploaded[n]);
-  if (!force && hash === state.lastHash && pendentes.length === 0) {
+  const bannersPendentes = bannerFiles.filter((b) => !state.uploaded["b/" + b.name]);
+  if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0) {
     saveState(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
     return { changed: false, models: products.length, photos: 0, failedPhotos: falhas };
@@ -129,6 +143,14 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
       for (const n of pendentes) {
         await client.uploadFrom(path.join(dirs().photos, n), posix.join(root, "fotos", n));
         state.uploaded[n] = true;
+      }
+    }
+    if (bannersPendentes.length) {
+      log(`Enviando ${bannersPendentes.length} banner(s)…`);
+      await client.ensureDir(posix.join(root, "banners"));
+      for (const b of bannersPendentes) {
+        await client.uploadFrom(b.file, posix.join(root, "banners", b.name));
+        state.uploaded["b/" + b.name] = true;
       }
     }
     log("Enviando catálogo…");
@@ -182,6 +204,7 @@ async function publishSite(cfg, { log = () => {} } = {}) {
   if (dist !== bundled) {
     fs.rmSync(path.join(dist, "data"), { recursive: true, force: true });
     fs.rmSync(path.join(dist, "fotos"), { recursive: true, force: true });
+    fs.rmSync(path.join(dist, "banners"), { recursive: true, force: true });
   }
 
   const client = await openFtp(cfg);

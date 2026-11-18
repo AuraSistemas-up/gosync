@@ -7,9 +7,11 @@ interface Props {
   product: Product;
   /** Numeração filtrada: destaca o tamanho e mostra a foto da cor que tem estoque nele. */
   size: string | null;
+  /** Abre o pop-up do produto (clique simples). Ctrl/botão do meio ainda abrem a página própria. */
+  onOpen?: (product: Product, colorSlug: string) => void;
 }
 
-export default function ProductCard({ product, size }: Props) {
+export default function ProductCard({ product, size, onOpen }: Props) {
   const withSize = size ? product.variants.filter((v) => v.sizes.some((s) => s.size === size && s.stock > 0)) : product.variants;
   const v = withSize[0] ?? product.variants[0];
 
@@ -22,7 +24,16 @@ export default function ProductCard({ product, size }: Props) {
   const href = `/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`;
 
   return (
-    <a href={href} class="card" aria-label={product.name}>
+    <a
+      href={href}
+      class="card"
+      aria-label={product.name}
+      onClick={(e) => {
+        if (!onOpen || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        onOpen(product, v.colorSlug);
+      }}
+    >
       <div class="card-photo">
         {v.image ? <img src={v.image} alt={`${product.name} ${v.color}`} loading="lazy" /> : <span class="no-photo">Sem foto</span>}
         {discount > 0 && <span class="badge-off">-{discount}%</span>}

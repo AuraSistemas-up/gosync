@@ -183,9 +183,10 @@ const cmpSize = (a, b) => {
     const slug = slugify(color || "unica");
     return m.variants.get(slug) ?? m.variants.set(slug, { color: color || "Único", colorSlug: slug, images: [], sizes: new Map() }).get(slug);
   };
-  const addSize = (variant, size, qty, sku) => {
+  const addSize = (variant, size, qty, sku, image) => {
     const cur = variant.sizes.get(size);
-    if (cur) cur.stock += qty; else variant.sizes.set(size, { size, stock: qty, sku, available: qty > 0 });
+    if (cur) { cur.stock += qty; cur.image ??= image; }
+    else variant.sizes.set(size, { size, stock: qty, sku, available: qty > 0, image: image || undefined });
   };
 
   let n = 0;
@@ -211,7 +212,7 @@ const cmpSize = (a, b) => {
         const url = await photoUrl(`v${p.PRD_ID}:${v.V}`, v.IMG);
         if (url && !variant.images.includes(url)) variant.images.push(url);
         const size = tam?.valor || (String(v.D || "").match(/(\d{2}(?:\/\d{2})?)\s*$/)?.[1]) || "Único";
-        addSize(variant, size, stock.get(`${p.PRD_ID}:${v.V}`) || 0, v.REF || p.PRD_REFERENCIA || String(p.PRD_CODIGO));
+        addSize(variant, size, stock.get(`${p.PRD_ID}:${v.V}`) || 0, v.REF || p.PRD_REFERENCIA || String(p.PRD_CODIGO), url);
         const vp = Number(v.PRECO);
         m.minPrice = Math.min(m.minPrice, vp > 0 ? vp : price || Infinity);
       }
@@ -251,9 +252,15 @@ const cmpSize = (a, b) => {
   }
   products.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
+  // Banners de propaganda: imagens colocadas em <out>/banners (ordem alfabética: 1.jpg, 2.jpg…).
+  const bdir = path.join(OUT, "banners");
+  const banners = fs.existsSync(bdir)
+    ? fs.readdirSync(bdir).filter((f) => /\.(jpe?g|png|webp)$/i.test(f)).sort().slice(0, 6).map((f) => ({ image: "/banners/" + f }))
+    : [];
+
   fs.mkdirSync(path.join(OUT, "data"), { recursive: true });
   const file = path.join(OUT, "data", "catalog.json");
-  fs.writeFileSync(file, JSON.stringify({ updatedAt: new Date().toISOString(), whatsapp: STORE.whatsapp, store: { name: STORE.name, primaryColor: STORE.primaryColor }, products }));
+  fs.writeFileSync(file, JSON.stringify({ updatedAt: new Date().toISOString(), whatsapp: STORE.whatsapp, store: { name: STORE.name, primaryColor: STORE.primaryColor, banners }, products }));
 
   const withPhoto = products.filter((p) => p.variants.some((v) => v.images.length)).length;
   const cats = {};

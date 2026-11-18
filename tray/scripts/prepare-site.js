@@ -15,4 +15,5 @@ fs.cpSync(path.join(root, "dist"), target, { recursive: true });
 // Nunca embutir dados de exemplo: o catálogo real vem do ERP.
 fs.rmSync(path.join(target, "data"), { recursive: true, force: true });
 fs.rmSync(path.join(target, "fotos"), { recursive: true, force: true });
+fs.rmSync(path.join(target, "banners"), { recursive: true, force: true }); // banners vêm do GoSync (pasta configurada)
 console.log("Site embutido em", target);

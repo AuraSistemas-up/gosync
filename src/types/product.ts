@@ -4,6 +4,7 @@ export interface SizeStock {
   stock: number;
   sku: string;
   available: boolean; // stock > 0
+  image?: string; // foto da variação (numeração), se houver
 }
 
 /** Variante = um modelo em uma cor, com suas numerações. */
@@ -33,6 +34,7 @@ export interface Product {
 export interface CatalogFile {
   updatedAt: string; // ISO
   whatsapp: string; // só dígitos, com DDI
-  store?: { name?: string; primaryColor?: string }; // identidade da loja (definida no GoSync)
+  // Identidade da loja (definida no GoSync) e banners de propaganda do carrossel.
+  store?: { name?: string; primaryColor?: string; banners?: { image: string; link?: string; alt?: string }[] };
   products: Product[];
 }

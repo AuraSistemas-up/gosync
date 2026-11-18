@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Product } from "../types/product";
 import { categoryName, cmpSize, label, listCategories } from "../lib/catalog";
 import ProductCard from "./ProductCard";
+import ProductModal from "./ProductModal";
+import Banners, { type Banner } from "./Banners";
 
 const PAGE_SIZE = 24;
 const PRICE_RANGES = [
@@ -67,11 +69,19 @@ function Pager({ page, pages, go }: { page: number; pages: number; go: (n: numbe
   );
 }
 
-export default function Catalog({ products }: { products: Product[] }) {
+export default function Catalog({ products, whatsapp = "", banners }: { products: Product[]; whatsapp?: string; banners?: Banner[] }) {
   const [f, setF] = useState<F>(() => readUrl());
+  // Produto aberto no pop-up (também vai para a URL: ?p=<id>&c=<cor>).
+  const [open, setOpen] = useState<{ id: string; color?: string } | null>(() => {
+    const u = new URLSearchParams(location.search);
+    const id = u.get("p");
+    return id ? { id, color: u.get("c") ?? undefined } : null;
+  });
+  const openProduct = open ? products.find((p) => p.id === open.id) : undefined;
   const [sort, setSort] = useState("relevance");
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState<"cat" | "brand" | "more">("cat");
+  const [mobileOpen, setMobileOpen] = useState(false); // só afeta telas pequenas
   const [catQ, setCatQ] = useState("");
   const [brandQ, setBrandQ] = useState("");
   const set = (patch: Partial<F>) => { setF((x) => ({ ...x, ...patch })); setPage(1); };
@@ -85,9 +95,10 @@ export default function Catalog({ products }: { products: Product[] }) {
     if (f.size) u.set("tam", f.size);
     if (f.gender) u.set("genero", f.gender);
     if (f.price !== "all") u.set("preco", f.price);
+    if (open) { u.set("p", open.id); if (open.color) u.set("c", open.color); }
     const qs = u.toString();
     history.replaceState(null, "", location.pathname + (qs ? "?" + qs : ""));
-  }, [f]);
+  }, [f, open]);
 
   const categories = useMemo(() => listCategories(products), [products]);
   const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort((a, b) => a!.localeCompare(b!, "pt-BR")) as string[], [products]);
@@ -128,7 +139,11 @@ export default function Catalog({ products }: { products: Product[] }) {
 
   return (
     <div class="layout">
-      <aside class="sidebar" aria-label="Grupos e filtros">
+      <aside class={`sidebar${mobileOpen ? " open" : ""}`} aria-label="Grupos e filtros">
+        <button type="button" class="sidebar-toggle" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}>
+          <span>☰ Grupos e filtros{active > 0 ? ` (${active})` : ""}</span><span>{mobileOpen ? "−" : "+"}</span>
+        </button>
+        <div class="sidebar-body">
         <div class="sidebar-tabs">
           {([["cat", "Grupos"], ["brand", "Marcas"], ["more", "Filtros"]] as const).map(([id, name]) => (
             <button key={id} type="button" class={`sidebar-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{name}</button>
@@ -169,6 +184,16 @@ export default function Catalog({ products }: { products: Product[] }) {
 
         {tab === "more" && (
           <div>
+            <div class="filter-title" style="margin-top:0">Numeração <span style="font-weight:500;text-transform:none;color:var(--text-muted)">(com estoque)</span></div>
+            <div class="size-grid">
+              {sizes.map((s) => {
+                const n = count("size", (p) => p.variants.some((v) => v.sizes.some((x) => x.size === s && x.stock > 0)));
+                return (
+                  <button key={s} type="button" disabled={n === 0 && f.size !== s} title={n === 0 ? "Sem estoque" : `${n} modelo(s)`}
+                    class={`size-pill${f.size === s ? " active" : ""}`} onClick={() => set({ size: f.size === s ? null : s })}>{s}</button>
+                );
+              })}
+            </div>
             {genders.length > 0 && (
               <>
                 <div class="filter-title">Gênero</div>
@@ -191,6 +216,7 @@ export default function Catalog({ products }: { products: Product[] }) {
         {active > 0 && (
           <button type="button" class="btn-clear" style="width:100%;margin-top:14px" onClick={clear}>× Limpar filtros ({active})</button>
         )}
+        </div>
       </aside>
 
       <main class="content">
@@ -206,19 +232,7 @@ export default function Catalog({ products }: { products: Product[] }) {
           </div>
         )}
 
-        <div class="size-filter-bar">
-          <span class="size-filter-label">Tamanho:</span>
-          <div class="size-pills-wrap">
-            <button type="button" class={`size-pill${!f.size ? " active" : ""}`} onClick={() => set({ size: null })}>Todos</button>
-            {sizes.map((s) => {
-              const n = count("size", (p) => p.variants.some((v) => v.sizes.some((x) => x.size === s && x.stock > 0)));
-              return (
-                <button key={s} type="button" disabled={n === 0 && f.size !== s} title={n === 0 ? "Sem estoque" : `${n} modelo(s)`}
-                  class={`size-pill${f.size === s ? " active" : ""}`} onClick={() => set({ size: f.size === s ? null : s })}>{s}</button>
-              );
-            })}
-          </div>
-        </div>
+        <Banners banners={banners} />
 
         <div class="content-header">
           <h1 class="breadcrumb" style="margin:0">{title}</h1>
@@ -236,10 +250,18 @@ export default function Catalog({ products }: { products: Product[] }) {
             <div><button type="button" class="btn-clear" onClick={clear}>Limpar filtros</button></div>
           </div>
         ) : (
-          <div class="grid">{visible.map((p) => <ProductCard key={p.id} product={p} size={f.size} />)}</div>
+          <div class="grid">
+            {visible.map((p) => (
+              <ProductCard key={p.id} product={p} size={f.size} onOpen={(prod, color) => setOpen({ id: prod.id, color })} />
+            ))}
+          </div>
         )}
         <Pager page={cur} pages={pages} go={goPage} />
       </main>
+
+      {openProduct && (
+        <ProductModal product={openProduct} whatsapp={whatsapp} color={open?.color} size={f.size} onClose={() => setOpen(null)} />
+      )}
     </div>
   );
 }

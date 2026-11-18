@@ -8,6 +8,7 @@ const DEFAULTS = {
   whatsapp: "",
   storeName: "",
   primaryColor: "#a33a33",
+  bannersDir: "", // pasta com as imagens do carrossel de propaganda (até 6)
   ftpHost: "",
   ftpUser: "",
   ftpPass: "",
