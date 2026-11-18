@@ -1,0 +1,21 @@
+---
+import "../styles/global.css";
+interface Props { title: string }
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="sticky top-0 z-30 border-b border-stone-200 bg-white/90 backdrop-blur">
+      <div class="mx-auto max-w-6xl px-4 h-14 flex items-center">
+        <span class="text-lg font-bold tracking-tight">Sapataria</span>
+      </div>
+    </header>
+    <slot />
+  </body>
+</html>

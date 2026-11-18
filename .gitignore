@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.astro/
+.env
+tray/dist/
+tray/site-dist/
+tray/node_modules/
+*.log
