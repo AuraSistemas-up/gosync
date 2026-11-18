@@ -3,7 +3,7 @@
   "productName": "GoSync",
   "version": "1.0.0",
   "description": "GoSync: sincroniza ERP → Locaweb (bandeja do relógio)",
-  "author": "goupsistemasmg",
+  "author": "AuraSistemas-up",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -29,6 +29,6 @@
     "extraResources": [{ "from": "site-dist", "to": "site" }],
     "win": { "icon": "assets/icon.png", "target": "nsis" },
     "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true },
-    "publish": { "provider": "github", "owner": "goupsistemasmg", "repo": "gosync" }
+    "publish": { "provider": "github", "owner": "AuraSistemas-up", "repo": "gosync" }
   }
 }

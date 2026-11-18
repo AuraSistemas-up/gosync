@@ -5,7 +5,7 @@
   produtos, grupos, estoque e fotos. Atualiza a si mesmo via GitHub Releases.
 
 ## Primeiro uso do GoSync
-1. Instale o `GoSync-Setup-x.y.z.exe` da última [release](https://github.com/goupsistemasmg/gosync/releases).
+1. Instale o `GoSync-Setup-x.y.z.exe` da última [release](https://github.com/AuraSistemas-up/gosync/releases).
 2. Aba **Configurações → Assistente Locaweb**: domínio → *Detectar* → usuário/senha do FTP → *Diagnosticar e configurar*.
 3. Preencha a URL da API do ERP e o WhatsApp da loja → *Salvar*.
 4. *Publicar / atualizar o site* (uma vez; o site já vem dentro do instalador).
