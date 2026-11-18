@@ -51,6 +51,8 @@
   fieldset { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 0; background: var(--card); display: grid; gap: 10px; }
   legend { padding: 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
   label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+  select { background: #0b1220; border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 10px 12px; font: inherit; width: 100%; }
+  select:focus { outline: none; border-color: var(--accent); }
   input[type=text], input[type=password], input[type=number] {
     background: #0b1220; border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 10px 12px; font: inherit; width: 100%;
   }
@@ -111,9 +113,33 @@
         <ul id="steps" style="list-style:none;margin:0;padding:0;display:grid;gap:6px"></ul>
       </fieldset>
       <fieldset>
-        <legend>ERP</legend>
-        <label>URL da API de produtos<input type="text" name="erpUrl" placeholder="https://erp.exemplo.com/api/produtos" /></label>
-        <label>Token (opcional)<input type="password" name="erpToken" placeholder="" /></label>
+        <legend>Dados do ERP</legend>
+        <label>Fonte dos dados
+          <select name="source" id="source">
+            <option value="firebird">Banco de dados Firebird (recomendado)</option>
+            <option value="rest">API REST</option>
+          </select>
+        </label>
+
+        <div id="fbBox" style="display:grid;gap:10px">
+          <label>Arquivo do banco (.FDB) no servidor do Firebird<div class="row"><input type="text" name="fbDb" placeholder="C:/ERP/DADOS.FDB" /><button type="button" class="ghost" id="pickFdb">Escolher</button></div></label>
+          <div class="row">
+            <label>Usuário<input type="text" name="fbUser" placeholder="SYSDBA" /></label>
+            <label>Senha<input type="password" name="fbPassword" /></label>
+          </div>
+          <div class="row">
+            <label>Servidor<input type="text" name="fbHost" placeholder="127.0.0.1" /></label>
+            <label style="max-width:110px">Porta<input type="number" name="fbPort" placeholder="3050" /></label>
+          </div>
+          <div class="actions"><button type="button" class="ghost" id="testFb">Testar banco</button></div>
+          <p class="note">Leitura somente (nada é alterado no ERP). São publicados só produtos ativos, marcados para exportar e com estoque.</p>
+        </div>
+
+        <div id="restBox" style="display:none;gap:10px">
+          <label>URL da API de produtos<input type="text" name="erpUrl" placeholder="https://erp.exemplo.com/api/produtos" /></label>
+          <label>Token (opcional)<input type="password" name="erpToken" placeholder="" /></label>
+        </div>
+
         <label>WhatsApp da loja (DDI+DDD+número)<input type="text" name="whatsapp" placeholder="5511999998888" /></label>
       </fieldset>
       <fieldset>
@@ -193,6 +219,8 @@ function fillForm(c) {
     else el.value = c[el.name] ?? "";
   }
   f.erpToken.placeholder = c.erpTokenSet ? "•••••• (salvo — deixe vazio para manter)" : "";
+  f.fbPassword.placeholder = c.fbPasswordSet ? "•••••• (salva — deixe vazio para manter)" : "";
+  updateSource();
   f.ftpPass.placeholder = c.ftpPassSet ? "•••••• (salvo — deixe vazio para manter)" : "";
   $("#every").textContent = c.intervalMin + " min";
 }
@@ -225,6 +253,22 @@ $("#syncBtn").addEventListener("click", async () => {
 });
 $("#form").addEventListener("submit", async (e) => { e.preventDefault(); await save(); toast("Configurações salvas"); });
 $("#pick").addEventListener("click", async () => { const p = await api.pickFolder(); if (p) $("#form").siteDir.value = p; });
+function updateSource() {
+  const rest = $("#source").value === "rest";
+  $("#fbBox").style.display = rest ? "none" : "grid";
+  $("#restBox").style.display = rest ? "grid" : "none";
+}
+$("#source").addEventListener("change", updateSource);
+$("#pickFdb").addEventListener("click", async () => {
+  const p = await api.pickFile([{ name: "Banco Firebird", extensions: ["fdb", "gdb"] }]);
+  if (p) $("#form").fbDb.value = p.replace(/\\/g, "/");
+});
+$("#testFb").addEventListener("click", async () => {
+  await save();
+  toast("Testando o banco…");
+  const r = await api.testFirebird();
+  toast(r.ok ? `Banco OK ✓ (${r.products} produtos exportáveis)` : "Falhou: " + r.error);
+});
 $("#pickBanners").addEventListener("click", async () => { const p = await api.pickFolder(); if (p) $("#form").bannersDir.value = p; });
 $("#testFtp").addEventListener("click", async () => {
   await save();
@@ -282,7 +326,8 @@ api.init().then(({ config, status, logs, update, version }) => {
   fillForm(config);
   renderStatus(status);
   logs.forEach(addLog);
-  if (!config.erpUrl) document.querySelector('[data-tab="settings"]').click();
+  const ready = config.source === "rest" ? config.erpUrl : config.fbDb && config.fbPasswordSet;
+  if (!ready) document.querySelector('[data-tab="settings"]').click();
 });
 </script>
 </body>

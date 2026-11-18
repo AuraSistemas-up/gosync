@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("api", {
   checkUpdate: () => ipcRenderer.invoke("update:check"),
   installUpdate: () => ipcRenderer.invoke("update:install"),
   onUpdate: (cb) => ipcRenderer.on("update", (_e, u) => cb(u)),
+  testFirebird: () => ipcRenderer.invoke("firebird:test"),
+  pickFile: (filters) => ipcRenderer.invoke("pick:file", filters),
   pickFolder: () => ipcRenderer.invoke("pick:folder"),
   onStatus: (cb) => ipcRenderer.on("status", (_e, s) => cb(s)),
   onLog: (cb) => ipcRenderer.on("log", (_e, l) => cb(l)),

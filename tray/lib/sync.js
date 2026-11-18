@@ -5,6 +5,7 @@ const { spawn } = require("child_process");
 const ftp = require("basic-ftp");
 const { app, nativeImage } = require("electron");
 const { fetchRaw, groupProducts } = require("./erp");
+const { readFirebird } = require("./firebird");
 
 const EXT = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" };
 const posix = path.posix;
@@ -99,29 +100,43 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null });
   state.photos ??= {};
   state.uploaded ??= {};
-  if (force) state.uploaded = {};
+  // `force` só ignora o atalho "nada mudou" (reenvia o catálogo). Para refazer as fotos use "Reenviar todas as fotos".
 
-  log("Buscando produtos no ERP…");
-  const raw = await fetchRaw({ url: cfg.erpUrl, token: cfg.erpToken }, log);
-  const products = groupProducts(raw);
-  log(`${raw.length} itens do ERP → ${products.length} modelos com estoque.`);
-
-  // Fotos: baixa só as URLs ainda desconhecidas.
-  const urls = [...new Set(products.flatMap((p) => p.variants.flatMap((v) => v.images)))];
-  const novas = urls.filter((u) => !state.photos[u]);
-  if (novas.length) log(`Baixando ${novas.length} foto(s) nova(s)…`);
+  let products;
   let falhas = 0;
-  await pool(novas, 4, async (u) => {
-    try { state.photos[u] = await fetchPhoto(u, cfg); }
-    catch (e) { falhas++; log(`Foto ignorada (${e.message}): ${u.slice(0, 80)}`); }
-  });
+  let photoNames; // nomes (hash) das fotos usadas pelo catálogo, para enviar as que faltam
 
-  const toSite = (u) => (state.photos[u] ? `/fotos/${state.photos[u]}` : u);
-  for (const p of products)
-    for (const v of p.variants) {
-      v.images = v.images.map(toSite);
-      v.image = v.images[0];
-    }
+  if (cfg.source === "firebird") {
+    // Fonte: banco Firebird do ERP (somente leitura). As fotos vêm do próprio banco e já saem redimensionadas.
+    state.fbPhotos ??= {};
+    const fb = await readFirebird(cfg, { log, photosDir: dirs().photos, cache: state.fbPhotos });
+    products = fb.products;
+    photoNames = fb.photoNames;
+    falhas = fb.photoFailures;
+    log(`${products.length} modelos com estoque (${fb.newPhotos} foto(s) nova(s) lida(s) do banco).`);
+  } else {
+    log("Buscando produtos no ERP…");
+    const raw = await fetchRaw({ url: cfg.erpUrl, token: cfg.erpToken }, log);
+    products = groupProducts(raw);
+    log(`${raw.length} itens do ERP → ${products.length} modelos com estoque.`);
+
+    // Fotos: baixa só as URLs ainda desconhecidas.
+    const urls = [...new Set(products.flatMap((p) => p.variants.flatMap((v) => v.images)))];
+    const novas = urls.filter((u) => !state.photos[u]);
+    if (novas.length) log(`Baixando ${novas.length} foto(s) nova(s)…`);
+    await pool(novas, 4, async (u) => {
+      try { state.photos[u] = await fetchPhoto(u, cfg); }
+      catch (e) { falhas++; log(`Foto ignorada (${e.message}): ${u.slice(0, 80)}`); }
+    });
+
+    const toSite = (u) => (state.photos[u] ? `/fotos/${state.photos[u]}` : u);
+    for (const p of products)
+      for (const v of p.variants) {
+        v.images = v.images.map(toSite);
+        v.image = v.images[0];
+      }
+    photoNames = new Set(Object.values(state.photos));
+  }
 
   // Banners do carrossel: imagens da pasta configurada (ordem alfabética, até 6), com nome = hash do conteúdo.
   const banners = [];
@@ -161,7 +176,7 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   };
   const hash = crypto.createHash("sha1").update(JSON.stringify({ ...catalog, updatedAt: 0 })).digest("hex");
 
-  const pendentes = [...new Set(Object.values(state.photos))].filter((n) => !state.uploaded[n]);
+  const pendentes = [...photoNames].filter((n) => !state.uploaded[n]);
   const bannersPendentes = bannerFiles.filter((b) => !state.uploaded["b/" + b.name]);
   if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0) {
     saveState(state);
@@ -178,12 +193,14 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
     const root = cfg.remoteDir || "/";
     if (pendentes.length) {
       log(`Enviando ${pendentes.length} foto(s)…`);
+      let enviadas = 0;
       await client.ensureDir(posix.join(root, "fotos"));
       for (const n of pendentes) {
         await client.uploadFrom(path.join(dirs().photos, n), posix.join(root, "fotos", n));
         const t = n.replace(/(\.\w+)$/, "-s$1"); // miniatura, se existir
         if (fs.existsSync(path.join(dirs().photos, t))) await client.uploadFrom(path.join(dirs().photos, t), posix.join(root, "fotos", t));
         state.uploaded[n] = true;
+        if (++enviadas % 50 === 0) { saveState(state); log(`  ${enviadas}/${pendentes.length} fotos enviadas…`); } // progresso salvo: se cair, retoma daqui
       }
     }
     if (bannersPendentes.length) {
@@ -265,6 +282,7 @@ async function publishSite(cfg, { log = () => {} } = {}) {
 function resetPhotoCache() {
   const s = loadState();
   s.photos = {};
+  s.fbPhotos = {};
   s.uploaded = {};
   s.lastHash = null;
   saveState(s);

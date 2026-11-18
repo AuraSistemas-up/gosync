@@ -3,6 +3,7 @@ const path = require("path");
 const config = require("./lib/config");
 const { syncData, publishSite, testFtp, resetPhotoCache } = require("./lib/sync");
 const locaweb = require("./lib/locaweb");
+const { testFirebird, readFirebird } = require("./lib/firebird");
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -35,7 +36,8 @@ function setStatus(patch) {
   updateTray();
 }
 
-const configured = (c) => c.erpUrl && c.ftpHost && c.ftpUser && c.ftpPass;
+const configured = (c) =>
+  (c.source === "rest" ? !!c.erpUrl : !!(c.fbDb && c.fbUser && c.fbPassword)) && !!(c.ftpHost && c.ftpUser && c.ftpPass);
 
 /* ---------- janela ---------- */
 function createWindow(show = true) {
@@ -210,6 +212,14 @@ ipcMain.handle("locaweb:diagnose", async () => {
 });
 ipcMain.handle("update:check", () => checkUpdate(true));
 ipcMain.handle("update:install", () => { if (updater && updateReady) { quitting = true; updater.quitAndInstall(true, true); } });
+ipcMain.handle("firebird:test", async () => {
+  try { return { ok: true, ...(await testFirebird(config.load())) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle("pick:file", async (_e, filters) => {
+  const r = await dialog.showOpenDialog(win, { properties: ["openFile"], filters: filters || [] });
+  return r.canceled ? null : r.filePaths[0];
+});
 ipcMain.handle("pick:folder", async () => {
   const r = await dialog.showOpenDialog(win, { properties: ["openDirectory"] });
   return r.canceled ? null : r.filePaths[0];
@@ -220,7 +230,22 @@ app.on("second-instance", showWindow);
 app.on("before-quit", () => { quitting = true; });
 app.on("window-all-closed", () => { /* continua na bandeja */ });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Autoteste (desenvolvimento/instalador): lê o Firebird com a config em GOSYNC_SELFTEST_CFG e sai, sem abrir janela.
+  if (process.argv.includes("--selftest-firebird")) {
+    try {
+      const cfg = JSON.parse(process.env.GOSYNC_SELFTEST_CFG || "{}");
+      const dir = path.join(app.getPath("temp"), "gosync-selftest");
+      const t = await testFirebird(cfg);
+      const r = await readFirebird(cfg, { photosDir: dir, cache: {}, log: () => {} });
+      console.log(JSON.stringify({ ok: true, packaged: app.isPackaged, electron: process.versions.electron, lib: t.lib, produtosAtivos: t.products, modelos: r.products.length, fotos: r.photoNames.size, fotosNovas: r.newPhotos, falhas: r.photoFailures }));
+      app.exit(0);
+    } catch (e) {
+      console.log(JSON.stringify({ ok: false, error: e.message }));
+      app.exit(1);
+    }
+    return;
+  }
   app.setAppUserModelId("br.com.gosync.app");
   initUpdater();
   const c = config.load();

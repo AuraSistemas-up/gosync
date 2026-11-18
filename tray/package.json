@@ -1,7 +1,7 @@
 {
   "name": "gosync",
   "productName": "GoSync",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "GoSync: sincroniza ERP → Locaweb (bandeja do relógio)",
   "author": "AuraSistemas-up",
   "main": "main.js",
@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "iconv-lite": "^0.7.3",
+    "node-firebird-driver-native": "^3.7.1"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -32,7 +34,8 @@
       "preload.js",
       "lib/**",
       "ui/**",
-      "assets/**"
+      "assets/**",
+      "!**/node_modules/node-firebird-native-api/{src,build/Release/*.{exp,iobj,ipdb,lib,pdb,obj,ilk},build/*.{vcxproj,sln,tlog},binding.gyp}"
     ],
     "extraResources": [
       {
@@ -53,6 +56,10 @@
       "provider": "github",
       "owner": "AuraSistemas-up",
       "repo": "gosync"
-    }
+    },
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/node-firebird-native-api/build/Release/*.node"
+    ]
   }
 }

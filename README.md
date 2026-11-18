@@ -4,6 +4,13 @@
 - **GoSync** (`tray/`, Electron): app da bandeja do Windows. A cada 15 min busca o ERP e envia por FTP
   produtos, grupos, estoque e fotos. Atualiza a si mesmo via GitHub Releases.
 
+## Fonte dos dados do GoSync
+Em *Configurações → Dados do ERP* escolha **Banco de dados Firebird** (padrão) ou **API REST**.
+- **Firebird:** informe o arquivo `.FDB`, usuário, senha, servidor e porta (ex.: 3060 se o ERP usa a instância FB5) e clique em *Testar banco*.
+  O GoSync só lê (SELECT) e usa o `fbclient.dll` já instalado com o Firebird. Publica produtos ativos, marcados para exportar e com estoque.
+  As fotos (produtos e variações) são lidas do banco, redimensionadas (1200 px; as pequenas são ampliadas) e enviadas com miniatura de 520 px.
+- A cada ciclo (15 min) só são lidas do banco as fotos novas; "Sincronizar agora" reenvia o catálogo; "Reenviar todas as fotos" refaz as fotos.
+
 ## Primeiro uso do GoSync
 1. Instale o `GoSync-Setup-x.y.z.exe` da última [release](https://github.com/AuraSistemas-up/gosync/releases).
 2. Aba **Configurações → Assistente Locaweb**: domínio → *Detectar* → usuário/senha do FTP → *Diagnosticar e configurar*.

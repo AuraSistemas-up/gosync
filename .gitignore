@@ -14,3 +14,4 @@ public/logo/
 public/admin/credenciais.json
 public/admin/tentativas.json
 .deploy.env
+locaweb/

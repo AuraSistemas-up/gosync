@@ -3,6 +3,13 @@ const path = require("path");
 const { app, safeStorage } = require("electron");
 
 const DEFAULTS = {
+  source: "firebird", // "firebird" (lê o banco do ERP) ou "rest" (API REST)
+  fbDb: "", // caminho do arquivo .FDB no servidor do Firebird (ex.: C:/ERP/DADOS.FDB)
+  fbUser: "SYSDBA",
+  fbPassword: "",
+  fbHost: "127.0.0.1",
+  fbPort: 3050,
+  fbClient: "", // vazio = detecta o fbclient.dll automaticamente
   erpUrl: "",
   erpToken: "",
   whatsapp: "",
@@ -18,7 +25,7 @@ const DEFAULTS = {
   siteDir: path.resolve(__dirname, "..", ".."),
   autostart: true,
 };
-const SECRETS = ["erpToken", "ftpPass"];
+const SECRETS = ["erpToken", "ftpPass", "fbPassword"];
 
 const file = () => path.join(app.getPath("userData"), "config.json");
 

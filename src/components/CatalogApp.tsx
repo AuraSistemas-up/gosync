@@ -1,6 +1,5 @@
 import { useCatalog } from "../lib/catalog";
 import Catalog from "./Catalog";
-import Hero from "./Hero";
 
 export default function CatalogApp() {
   const s = useCatalog();
@@ -23,9 +22,6 @@ export default function CatalogApp() {
       </div>
     );
   return (
-    <>
-      <Hero data={s.data} />
-      <Catalog products={s.data.products} whatsapp={s.data.whatsapp} message={s.data.store?.message} banners={s.data.store?.banners} />
-    </>
+    <Catalog products={s.data.products} whatsapp={s.data.whatsapp} message={s.data.store?.message} banners={s.data.store?.banners} />
   );
 }
