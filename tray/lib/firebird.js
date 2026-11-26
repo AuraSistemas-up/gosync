@@ -126,7 +126,7 @@ async function readFirebird(cfg, { log = () => {}, photosDir, cache = {}, ids = 
       }
     };
 
-    const products = await buildProducts({ q, photoUrl, log, tipos: cfg.fbTipos || "N,G", ids });
+    const products = await buildProducts({ q, photoUrl, log, tipos: cfg.fbTipos || "N,G", ids, onlyStock: cfg.onlyStock !== false });
     return { products, photoNames, newPhotos, photoFailures };
   } catch (e) {
     throw new Error(friendly(e));
@@ -152,8 +152,7 @@ async function testFirebird(cfg) {
     const tx = await att.startTransaction({ accessMode: "READ_ONLY" });
     const tipos = String(cfg.fbTipos || "N,G").split(/[,;\s]+/).map((t) => t.trim().toUpperCase()).filter((t) => /^[A-Z0-9]$/.test(t));
     const rs = await att.executeQuery(tx, `SELECT COUNT(*) AS N FROM TB_PRODUTO p WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S'
-      AND p.PRD_TIPO_PRODUTO IN (${(tipos.length ? tipos : ["N", "G"]).map((t) => `'${t}'`).join(", ")})
-      AND EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)`);
+      AND p.PRD_TIPO_PRODUTO IN (${(tipos.length ? tipos : ["N", "G"]).map((t) => `'${t}'`).join(", ")})${cfg.onlyStock !== false ? " AND EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)" : ""}`);
     const rows = await rs.fetchAsObject();
     await rs.close();
     await tx.commit();

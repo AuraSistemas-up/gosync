@@ -10,6 +10,7 @@ const DEFAULTS = {
   fbHost: "127.0.0.1",
   fbPort: 3050,
   fbClient: "", // vazio = detecta o fbclient.dll automaticamente
+  onlyStock: true, // true = só produtos com estoque; false = todos com PRD_EXPORTAR = S (sem estoque aparecem esgotados)
   fbTipos: "N,G", // PRD_TIPO_PRODUTO publicados: N = normal, G = grade (com variações)
   erpUrl: "",
   erpToken: "",

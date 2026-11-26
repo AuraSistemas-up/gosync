@@ -80,7 +80,7 @@ const cmpSize = (a, b) => {
  * @param log       (texto) => void
  * @returns Product[] já agrupado, no formato de src/types/product.ts
  */
-async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], ids = {} }) {
+async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], ids = {}, onlyStock = true }) {
   // REGRA DE PUBLICAÇÃO: PRD_STATUS = 'A' (ativo) E PRD_EXPORTAR = 'S' E PRD_TIPO_PRODUTO nos tipos permitidos
   // (N = normal, G = grade com variações; padrão "N,G") E com estoque > 0.
   const tiposList = (Array.isArray(tipos) ? tipos : String(tipos).split(/[,;\s]+/))
@@ -89,8 +89,9 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], 
   if (!tiposList.length) throw new Error("Nenhum tipo de produto válido informado (ex.: N,G).");
   const TIPO = `p.PRD_TIPO_PRODUTO IN (${tiposList.map((t) => `'${t}'`).join(", ")})`;
 
-  log(`Lendo produtos (ativos, exportar=S, tipo ${tiposList.join("/")}, com estoque)…`);
-  const STOCK = "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)";
+  log(`Lendo produtos (ativos, exportar=S, tipo ${tiposList.join("/")}${onlyStock ? ", com estoque" : ", com ou sem estoque"})…`);
+  // onlyStock = false: publica todos os PRD_EXPORTAR = S; os sem estoque aparecem como esgotados.
+  const STOCK = onlyStock ? "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)" : "1 = 1";
   const prods = await q(`
     SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, m.PMAR_DESCRICAO AS MARCA,
            p.PRD_IMAGEM, OCTET_LENGTH(p.PRD_IMAGEM) AS IMGLEN, p.PRD_DT_CADASTRO AS CAD
@@ -174,7 +175,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], 
     const info = parseName(p.PRD_DESCRICAO);
     if (IGNORAR.test(info.base)) continue;
 
-    const pvars = (varsByProd.get(p.PRD_ID) || []).filter((v) => (stock.get(`${p.PRD_ID}:${v.V}`) || 0) > 0);
+    const pvars = (varsByProd.get(p.PRD_ID) || []).filter((v) => !onlyStock || (stock.get(`${p.PRD_ID}:${v.V}`) || 0) > 0);
     // Grupo e marca vêm SOMENTE do cadastro do produto (PRD_GRUPO → TB_PROD_GRUPO, PRD_MARCA → TB_PROD_MARCA).
     // Nada é deduzido pelo nome: sem grupo cadastrado o produto vai para "Outros"; sem marca fica sem marca.
     const grupoCadastro = p.GRUPO && String(p.GRUPO).trim() ? label(p.GRUPO) : null;
@@ -205,7 +206,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], 
     } else {
       // Produto "legado": um cadastro por numeração (ex.: "TENIS RAINHA VL 2500 N44") → agrupa por modelo.
       const qty = prodStock.get(p.PRD_ID) || 0;
-      if (qty <= 0) continue;
+      if (onlyStock && qty <= 0) continue;
       const m = getModel(`L${slugify(info.base)}`, { id: slugify(info.display) + "-" + p.PRD_ID, name: info.display, brand: info.brand, category: categoria, price });
       m.gender ??= genderOf(p.GRUPO);
       track(m, p);
@@ -223,7 +224,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], 
     const variants = [...m.variants.values()].map((v) => {
       const sizes = [...v.sizes.values()].sort((a, b) => cmpSize(a.size, b.size));
       return { color: v.color, colorSlug: v.colorSlug, image: v.images[0], images: v.images, sizes, totalStock: sizes.reduce((t, s) => t + s.stock, 0) };
-    }).filter((v) => v.totalStock > 0);
+    }).filter((v) => !onlyStock || v.totalStock > 0);
     if (!variants.length) continue;
     const price = Number.isFinite(m.minPrice) ? m.minPrice : m.price;
     if (!(price > 0)) continue; // sem preço de venda: não publicar

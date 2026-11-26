@@ -171,7 +171,7 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
     products = fb.products;
     photoNames = fb.photoNames;
     falhas = fb.photoFailures;
-    log(`${products.length} modelos com estoque (${fb.newPhotos} foto(s) nova(s) lida(s) do banco).`);
+    log(`${products.length} modelos${cfg.onlyStock !== false ? " com estoque" : ""} (${fb.newPhotos} foto(s) nova(s) lida(s) do banco).`);
   } else {
     log("Buscando produtos no ERP…");
     const raw = await fetchRaw({ url: cfg.erpUrl, token: cfg.erpToken }, log);
@@ -204,6 +204,7 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
 
   // Páginas por produto (prévia no WhatsApp/Google), sitemap e robots: só se o endereço do site estiver configurado.
   let seo = null;
+  if (!cfg.siteUrl) log("Aviso: \"URL pública do site\" não configurada; o link do WhatsApp vai sem prévia de foto e preço.");
   if (cfg.siteUrl) {
     const candidates = [path.join(process.resourcesPath || "", "site", "produto", "index.html"), path.join(cfg.siteDir || "", "dist", "produto", "index.html")];
     const tpl = candidates.find((f) => fs.existsSync(f));
