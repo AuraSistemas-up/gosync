@@ -99,6 +99,8 @@ async function pool(items, limit, fn) {
 async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const target = `${cfg.ftpHost}|${cfg.remoteDir}`;
   const state = loadState();
+  log(`Destino do envio: ${cfg.ftpHost}${cfg.remoteDir || "/"}`);
+  if (state.target && state.target !== target) log("O destino mudou desde a última sincronização: tudo será reenviado.");
   if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null, pages: {}, seoHash: null }); // novo destino: tudo precisa ser reenviado
   state.photos ??= {};
   state.uploaded ??= {};
