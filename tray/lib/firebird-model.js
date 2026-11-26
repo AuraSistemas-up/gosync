@@ -97,7 +97,8 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
     FROM TB_PRODUTO p
     LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
     LEFT JOIN TB_PROD_MARCA m ON m.PMAR_ID = p.PRD_MARCA
-    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
+    WHERE p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}
+    ORDER BY p.PRD_ID`); // ordem fixa: o id do modelo agrupado vem do menor PRD_ID e não muda entre sincronizações
 
   const stockRows = await q(`SELECT PRDE_PRODUTO AS P, COALESCE(PRDE_VARIACAO, 0) AS V, SUM(PRDE_ESTOQUE) AS S FROM TB_PRODUTO_ESTOQUE WHERE PRDE_ESTOQUE > 0 GROUP BY 1, 2`);
   const stock = new Map(); // "p:v" → qtd

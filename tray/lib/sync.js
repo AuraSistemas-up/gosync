@@ -99,7 +99,7 @@ async function pool(items, limit, fn) {
 async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const target = `${cfg.ftpHost}|${cfg.remoteDir}`;
   const state = loadState();
-  if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null });
+  if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null, pages: {}, seoHash: null }); // novo destino: tudo precisa ser reenviado
   state.photos ??= {};
   state.uploaded ??= {};
   // `force` só ignora o atalho "nada mudou" (reenvia o catálogo). Para refazer as fotos use "Reenviar todas as fotos".
@@ -111,7 +111,11 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   if (cfg.source === "firebird") {
     // Fonte: banco Firebird do ERP (somente leitura). As fotos vêm do próprio banco e já saem redimensionadas.
     state.fbPhotos ??= {};
-    const fb = await readFirebird(cfg, { log, photosDir: dirs().photos, cache: state.fbPhotos });
+    let tFb;
+    const fb = await Promise.race([
+      readFirebird(cfg, { log, photosDir: dirs().photos, cache: state.fbPhotos }),
+      new Promise((_, rej) => { tFb = setTimeout(() => rej(new Error("O banco Firebird não respondeu em 10 min (leitura cancelada).")), 10 * 60_000); }),
+    ]).finally(() => clearTimeout(tFb));
     products = fb.products;
     photoNames = fb.photoNames;
     falhas = fb.photoFailures;
@@ -146,7 +150,10 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
     const candidates = [path.join(process.resourcesPath || "", "site", "produto", "index.html"), path.join(cfg.siteDir || "", "dist", "produto", "index.html")];
     const tpl = candidates.find((f) => fs.existsSync(f));
     if (tpl) {
-      const hidden = await fetchHidden(cfg.siteUrl);
+      // Se o site não responder, usa a última lista de ocultos conhecida (em vez de tratar todos como visíveis).
+      let hidden = await fetchHidden(cfg.siteUrl, { nullOnError: true });
+      if (hidden) state.hidden = [...hidden];
+      else { hidden = new Set(state.hidden || []); log("Lista de ocultos indisponível; usando a última conhecida."); }
       seo = generate({ template: fs.readFileSync(tpl, "utf8"), products, siteUrl: cfg.siteUrl, storeName: cfg.storeName || "", hidden });
       seo.pages = seo.pages.filter((p) => /^[a-z0-9-]+$/.test(p.id));
     } else {
@@ -198,7 +205,10 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const seoHash = seo ? sha1(seo.sitemap + seo.robots) : null;
   const seoMudou = !!seo && seoHash !== state.seoHash;
   const bannersPendentes = bannerFiles.filter((b) => !state.uploaded["b/" + b.name]);
-  if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0 && pagesPendentes.length === 0 && !seoMudou) {
+  // Páginas de produtos que saíram do catálogo (desmarcados, sem estoque ou ocultos): precisam ser apagadas do servidor.
+  const atuais = new Set(seo ? seo.pages.map((p) => p.id) : []);
+  const orfas = seo ? Object.keys(state.pages).filter((id) => !atuais.has(id)) : [];
+  if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0 && pagesPendentes.length === 0 && !seoMudou && orfas.length === 0) {
     saveState(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
     return { changed: false, models: products.length, photos: 0, failedPhotos: falhas };
@@ -246,6 +256,16 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
       await client.uploadFrom(Readable.from([seo.sitemap]), posix.join(root, "sitemap.xml"));
       await client.uploadFrom(Readable.from([seo.robots]), posix.join(root, "robots.txt"));
       state.seoHash = seoHash;
+    }
+    if (orfas.length) {
+      log(`Removendo ${orfas.length} página(s) de produto que saíram do catálogo…`);
+      for (const id of orfas) {
+        try { await client.remove(posix.join(root, "p", `${id}.html`)); delete state.pages[id]; }
+        catch (e) {
+          if (/550|not found|no such/i.test(String(e.message))) delete state.pages[id]; // já não existe
+          else log(`  Não foi possível remover p/${id}.html (${e.message}); tenta de novo no próximo ciclo.`);
+        }
+      }
     }
     log("Enviando catálogo…");
     await client.ensureDir(posix.join(root, "data"));

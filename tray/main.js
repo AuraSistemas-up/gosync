@@ -111,14 +111,22 @@ function schedule() {
 async function guarded(label, fn) {
   if (status.state === "running") return { ok: false, error: "Já existe uma operação em andamento." };
   setStatus({ state: "running", message: label, lastRun: new Date().toISOString() });
+  // Vigia: se a operação travar (banco, FTP…), libera o estado em vez de bloquear todas as sincronizações seguintes.
+  const LIMITE_MIN = 30;
+  let vigia;
   try {
-    const result = await fn();
+    const result = await Promise.race([
+      fn(),
+      new Promise((_, rej) => { vigia = setTimeout(() => rej(new Error(`A operação passou de ${LIMITE_MIN} min e foi cancelada. Tentando de novo no próximo ciclo.`)), LIMITE_MIN * 60_000); }),
+    ]);
     return { ok: true, result };
   } catch (e) {
     log(`ERRO: ${e.message}`);
     setStatus({ state: "error", message: e.message });
     new Notification({ title: "GoSync", body: `Falha: ${e.message}` }).show();
     return { ok: false, error: e.message };
+  } finally {
+    clearTimeout(vigia);
   }
 }
 

@@ -220,10 +220,10 @@ function fillForm(c) {
     if (el.type === "checkbox") el.checked = !!c[el.name];
     else el.value = c[el.name] ?? "";
   }
-  f.erpToken.placeholder = c.erpTokenSet ? "•••••• (salvo — deixe vazio para manter)" : "";
-  f.fbPassword.placeholder = c.fbPasswordSet ? "•••••• (salva — deixe vazio para manter)" : "";
+  f.erpToken.placeholder = c.erpTokenSet ? "•••••• (salvo — vazio mantém; “-” apaga)" : "";
+  f.fbPassword.placeholder = c.fbPasswordSet ? "•••••• (salva — vazio mantém; “-” apaga)" : "";
   updateSource();
-  f.ftpPass.placeholder = c.ftpPassSet ? "•••••• (salvo — deixe vazio para manter)" : "";
+  f.ftpPass.placeholder = c.ftpPassSet ? "•••••• (salvo — vazio mantém; “-” apaga)" : "";
   $("#every").textContent = c.intervalMin + " min";
 }
 

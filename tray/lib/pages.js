@@ -95,8 +95,9 @@ function generate({ template, products, siteUrl, storeName, hidden = new Set() }
     return { id: p.id, html, hash: sha(html) };
   });
   const today = new Date().toISOString().slice(0, 10);
+  // Produtos: sem <lastmod> (não há data real de alteração; um valor falso é pior do que nenhum).
   const urls = [`  <url><loc>${esc(site + "/")}</loc><lastmod>${today}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>`].concat(
-    list.map((p) => `  <url><loc>${esc(`${site}/p/${p.id}/`)}</loc><lastmod>${p.added && p.added > "2000" ? today : today}</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>`),
+    list.map((p) => `  <url><loc>${esc(`${site}/p/${p.id}/`)}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`),
   );
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
   const robots = `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /data/\n\nSitemap: ${site}/sitemap.xml\n`;
@@ -104,14 +105,16 @@ function generate({ template, products, siteUrl, storeName, hidden = new Set() }
 }
 
 /** Lê a lista de produtos ocultos configurada no painel admin (melhor esforço; sem rede = nenhum oculto). */
-async function fetchHidden(siteUrl) {
+async function fetchHidden(siteUrl, { nullOnError = false } = {}) {
+  const fail = nullOnError ? null : new Set(); // com nullOnError, o chamador sabe que a leitura falhou
   try {
     const r = await fetch(siteUrl.replace(/\/+$/, "") + "/data/config.json", { signal: AbortSignal.timeout(10000), cache: "no-store" });
-    if (!r.ok) return new Set();
+    if (r.status === 404) return new Set(); // painel ainda não salvou nada: nenhum oculto
+    if (!r.ok) return fail;
     const c = await r.json();
     return new Set(Array.isArray(c.hidden) ? c.hidden : []);
   } catch {
-    return new Set();
+    return fail;
   }
 }
 
