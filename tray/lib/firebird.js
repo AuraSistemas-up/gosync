@@ -31,6 +31,12 @@ function findClientLib(cfg) {
   return found;
 }
 
+/** Põe a pasta do fbclient.dll no PATH uma única vez (antes crescia a cada sincronização até passar do limite do Windows). */
+function addToPath(dir) {
+  const parts = String(process.env.PATH || "").split(path.delimiter);
+  if (!parts.some((p) => p.toLowerCase() === dir.toLowerCase())) process.env.PATH = dir + path.delimiter + process.env.PATH;
+}
+
 const friendly = (e) => {
   const m = String(e.message || e);
   if (/Your user name and password|password|authenticat/i.test(m)) return "Usuário ou senha do Firebird incorretos";
@@ -65,15 +71,16 @@ function processPhoto(raw, photosDir) {
 
 /**
  * @param cfg  {fbDb, fbUser, fbPassword, fbHost, fbPort, fbClient}
- * @param opts {log, photosDir, cache}  cache: {chave → nome} persistido entre sincronizações (evita reler fotos já convertidas)
+ * @param opts {log, photosDir, cache, ids}  cache: {chave → nome} (a chave inclui o tamanho da imagem: foto trocada no ERP é relida);
+ *              ids: {chave do modelo → endereço publicado}, ambos persistidos entre sincronizações
  * @returns {products, photoNames:Set, newPhotos, photoFailures}
  */
-async function readFirebird(cfg, { log = () => {}, photosDir, cache = {} }) {
+async function readFirebird(cfg, { log = () => {}, photosDir, cache = {}, ids = {} }) {
   if (!cfg.fbDb || !cfg.fbUser || !cfg.fbPassword) throw new Error("Banco Firebird não configurado (caminho do .FDB, usuário e senha).");
   fs.mkdirSync(photosDir, { recursive: true });
 
   const lib = findClientLib(cfg);
-  process.env.PATH = path.dirname(lib) + path.delimiter + process.env.PATH; // dependências da dll
+  addToPath(path.dirname(lib)); // dependências da dll
   const { createNativeClient } = require("node-firebird-driver-native");
 
   const client = createNativeClient(lib);
@@ -119,7 +126,7 @@ async function readFirebird(cfg, { log = () => {}, photosDir, cache = {} }) {
       }
     };
 
-    const products = await buildProducts({ q, photoUrl, log, tipos: cfg.fbTipos || "N,G" });
+    const products = await buildProducts({ q, photoUrl, log, tipos: cfg.fbTipos || "N,G", ids });
     return { products, photoNames, newPhotos, photoFailures };
   } catch (e) {
     throw new Error(friendly(e));
@@ -134,7 +141,7 @@ async function readFirebird(cfg, { log = () => {}, photosDir, cache = {} }) {
 async function testFirebird(cfg) {
   if (!cfg.fbDb || !cfg.fbUser || !cfg.fbPassword) throw new Error("Preencha o caminho do .FDB, o usuário e a senha.");
   const lib = findClientLib(cfg);
-  process.env.PATH = path.dirname(lib) + path.delimiter + process.env.PATH;
+  addToPath(path.dirname(lib));
   const { createNativeClient } = require("node-firebird-driver-native");
   const client = createNativeClient(lib);
   let att;

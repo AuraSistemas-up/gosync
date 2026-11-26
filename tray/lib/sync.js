@@ -140,9 +140,10 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
   if (cfg.source === "firebird") {
     // Fonte: banco Firebird do ERP (somente leitura). As fotos vêm do próprio banco e já saem redimensionadas.
     state.fbPhotos ??= {};
+    state.fbIds ??= {}; // endereços dos modelos: nunca limpo (nem pelo "Reenviar todas as fotos")
     let tFb;
     const fb = await Promise.race([
-      readFirebird(cfg, { log, photosDir: dirs().photos, cache: state.fbPhotos }),
+      readFirebird(cfg, { log, photosDir: dirs().photos, cache: state.fbPhotos, ids: state.fbIds }),
       new Promise((_, rej) => { tFb = setTimeout(() => rej(new Error("O banco Firebird não respondeu em 10 min (leitura cancelada).")), 10 * 60_000); }),
     ]).finally(() => clearTimeout(tFb));
     products = fb.products;
