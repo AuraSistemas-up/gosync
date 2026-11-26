@@ -20,7 +20,27 @@ const dirs = () => {
 function loadState() {
   try { return JSON.parse(fs.readFileSync(dirs().state, "utf8")); } catch { return {}; }
 }
-const saveState = (s) => fs.writeFileSync(dirs().state, JSON.stringify(s));
+// Gravação atômica: escreve num temporário e renomeia. Se o PC cair no meio, o state.json antigo continua íntegro
+// (antes, um arquivo corrompido virava {} e o GoSync reenviava tudo do zero).
+function saveState(s) {
+  const file = dirs().state, tmp = file + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(s));
+  try { fs.renameSync(tmp, file); }
+  catch { fs.copyFileSync(tmp, file); fs.rmSync(tmp, { force: true }); } // antivírus/OneDrive segurando o arquivo
+}
+
+// "Reenviar todas as fotos" clicado durante uma sincronização: aplicado também ao estado em memória dela,
+// para que o salvamento final não desfaça a limpeza.
+let syncAtivo = 0; // contador: uma sincronização cancelada pode ainda estar terminando
+let resetPendente = false;
+const CAMPOS_RESET = () => ({ photos: {}, fbPhotos: {}, pages: {}, seoHash: null, uploaded: {}, lastHash: null });
+function persist(state) {
+  if (resetPendente) Object.assign(state, CAMPOS_RESET());
+  saveState(state);
+}
+
+/** Erro lançado quando a operação foi cancelada pelo vigia de tempo do processo principal. */
+const checkAbort = (signal) => { if (signal?.aborted) throw new Error("Operação cancelada (tempo limite)."); };
 
 async function openFtp(cfg) {
   if (!cfg.ftpHost || !cfg.ftpUser) throw new Error("FTP da Locaweb não configurado");
@@ -96,7 +116,14 @@ async function pool(items, limit, fn) {
  * Sincroniza ERP → Locaweb: produtos, grupos, estoque e fotos.
  * Só envia o que mudou (fotos novas + catalog.json), salvo `force`.
  */
-async function syncData(cfg, { force = false, log = () => {} } = {}) {
+async function syncData(cfg, opts = {}) {
+  if (!syncAtivo) resetPendente = false;
+  syncAtivo++;
+  try { return await syncDataInner(cfg, opts); }
+  finally { if (--syncAtivo === 0) resetPendente = false; }
+}
+
+async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}) {
   const target = `${cfg.ftpHost}|${cfg.remoteDir}`;
   const state = loadState();
   log(`Destino do envio: ${cfg.ftpHost}${cfg.remoteDir || "/"}`);
@@ -211,16 +238,21 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
   const atuais = new Set(seo ? seo.pages.map((p) => p.id) : []);
   const orfas = seo ? Object.keys(state.pages).filter((id) => !atuais.has(id)) : [];
   if (!force && hash === state.lastHash && pendentes.length === 0 && bannersPendentes.length === 0 && pagesPendentes.length === 0 && !seoMudou && orfas.length === 0) {
-    saveState(state);
+    checkAbort(signal);
+    persist(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
     return { changed: false, models: products.length, photos: 0, failedPhotos: falhas };
   }
 
+  checkAbort(signal);
   fs.mkdirSync(dirs().out, { recursive: true });
   const catalogFile = path.join(dirs().out, "catalog.json");
   fs.writeFileSync(catalogFile, JSON.stringify(catalog));
 
   const client = await openFtp(cfg);
+  // Cancelado pelo vigia: fecha a conexão (o envio em curso falha na hora) e impede qualquer gravação de estado.
+  const onAbort = () => client.close();
+  signal?.addEventListener("abort", onAbort);
   try {
     const root = cfg.remoteDir || "/";
     if (pendentes.length) {
@@ -228,11 +260,12 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
       let enviadas = 0;
       await client.ensureDir(posix.join(root, "fotos"));
       for (const n of pendentes) {
+        checkAbort(signal);
         await client.uploadFrom(path.join(dirs().photos, n), posix.join(root, "fotos", n));
         const t = n.replace(/(\.\w+)$/, "-s$1"); // miniatura, se existir
         if (fs.existsSync(path.join(dirs().photos, t))) await client.uploadFrom(path.join(dirs().photos, t), posix.join(root, "fotos", t));
         state.uploaded[n] = true;
-        if (++enviadas % 50 === 0) { saveState(state); log(`  ${enviadas}/${pendentes.length} fotos enviadas…`); } // progresso salvo: se cair, retoma daqui
+        if (++enviadas % 50 === 0) { persist(state); log(`  ${enviadas}/${pendentes.length} fotos enviadas…`); } // progresso salvo: se cair, retoma daqui
       }
     }
     if (bannersPendentes.length) {
@@ -250,9 +283,10 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
         await client.ensureDir(posix.join(root, "p"));
         let n = 0;
         for (const pg of pagesPendentes) {
+          checkAbort(signal);
           await client.uploadFrom(Readable.from([pg.html]), posix.join(root, "p", `${pg.id}.html`));
           state.pages[pg.id] = pg.hash;
-          if (++n % 100 === 0) { saveState(state); log(`  ${n}/${pagesPendentes.length} páginas enviadas…`); }
+          if (++n % 100 === 0) { persist(state); log(`  ${n}/${pagesPendentes.length} páginas enviadas…`); }
         }
       }
       await client.uploadFrom(Readable.from([seo.sitemap]), posix.join(root, "sitemap.xml"));
@@ -269,6 +303,7 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
         }
       }
     }
+    checkAbort(signal);
     log("Enviando catálogo…");
     await client.ensureDir(posix.join(root, "data"));
     const tmp = posix.join(root, "data", "catalog.json.tmp");
@@ -277,11 +312,13 @@ async function syncData(cfg, { force = false, log = () => {} } = {}) {
     try { await client.rename(tmp, final); }
     catch { await client.remove(final).catch(() => {}); await client.rename(tmp, final); }
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     client.close();
   }
 
+  checkAbort(signal);
   state.lastHash = hash;
-  saveState(state);
+  persist(state);
   return { changed: true, models: products.length, photos: pendentes.length, failedPhotos: falhas };
 }
 
@@ -297,7 +334,7 @@ function run(cmd, cwd, log) {
 }
 
 /** Publica o site (shell estático) uma vez: gera com Astro e envia dist/ por FTP. */
-async function publishSite(cfg, { log = () => {} } = {}) {
+async function publishSite(cfg, { log = () => {}, signal } = {}) {
   // App instalado: o site já vem pronto dentro do instalador (não precisa de Node).
   const bundled = path.join(process.resourcesPath || "", "site");
   let dist;
@@ -326,26 +363,24 @@ async function publishSite(cfg, { log = () => {} } = {}) {
     fs.rmSync(path.join(dist, "admin", "tentativas.json"), { force: true });
   }
 
+  checkAbort(signal);
   const client = await openFtp(cfg);
+  const onAbort = () => client.close();
+  signal?.addEventListener("abort", onAbort);
   try {
     log("Enviando o site para a Locaweb…");
     await client.ensureDir(cfg.remoteDir || "/");
     await client.uploadFromDir(dist, cfg.remoteDir || "/");
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     client.close();
   }
 }
 
 /** Força reenvio de todas as fotos na próxima sincronização. */
 function resetPhotoCache() {
-  const s = loadState();
-  s.photos = {};
-  s.fbPhotos = {};
-  s.pages = {};
-  s.seoHash = null;
-  s.uploaded = {};
-  s.lastHash = null;
-  saveState(s);
+  saveState(Object.assign(loadState(), CAMPOS_RESET()));
+  if (syncAtivo) resetPendente = true; // a sincronização em curso não pode gravar o estado antigo por cima
 }
 
 module.exports = { syncData, publishSite, testFtp, resetPhotoCache };

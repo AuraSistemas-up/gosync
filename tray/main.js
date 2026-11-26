@@ -113,11 +113,14 @@ async function guarded(label, fn) {
   setStatus({ state: "running", message: label, lastRun: new Date().toISOString() });
   // Vigia: se a operação travar (banco, FTP…), libera o estado em vez de bloquear todas as sincronizações seguintes.
   const LIMITE_MIN = 30;
+  // O AbortController interrompe de fato a operação antiga (fecha o FTP e impede que ela grave estado/status depois),
+  // para não existirem duas sincronizações ao mesmo tempo após o tempo limite.
+  const ctl = new AbortController();
   let vigia;
   try {
     const result = await Promise.race([
-      fn(),
-      new Promise((_, rej) => { vigia = setTimeout(() => rej(new Error(`A operação passou de ${LIMITE_MIN} min e foi cancelada. Tentando de novo no próximo ciclo.`)), LIMITE_MIN * 60_000); }),
+      fn(ctl.signal),
+      new Promise((_, rej) => { vigia = setTimeout(() => { ctl.abort(); rej(new Error(`A operação passou de ${LIMITE_MIN} min e foi cancelada. Tentando de novo no próximo ciclo.`)); }, LIMITE_MIN * 60_000); }),
     ]);
     return { ok: true, result };
   } catch (e) {
@@ -133,9 +136,11 @@ async function guarded(label, fn) {
 async function runSync(force) {
   const c = config.load();
   if (!configured(c)) { setStatus({ state: "idle", message: "Preencha as configurações para começar." }); showWindow(); return; }
+  if (status.state === "running") { if (!force) { log("Sincronização agendada adiada: outra operação está em andamento."); schedule(); } return { ok: false, error: "Já existe uma operação em andamento." }; }
   log(force ? "Sincronização manual iniciada." : "Sincronização agendada iniciada.");
-  const r = await guarded("Sincronizando produtos, estoque e fotos…", async () => {
-    const s = await syncData(c, { force, log });
+  const r = await guarded("Sincronizando produtos, estoque e fotos…", async (signal) => {
+    const s = await syncData(c, { force, log, signal });
+    if (signal.aborted) return s;
     const msg = s.changed
       ? `${s.models} modelos publicados${s.photos ? ` · ${s.photos} foto(s) enviada(s)` : ""}`
       : "Tudo atualizado (sem mudanças)";
@@ -198,8 +203,9 @@ ipcMain.handle("config:save", (_e, patch) => {
 });
 ipcMain.handle("sync:now", () => runSync(true));
 ipcMain.handle("site:publish", () =>
-  guarded("Publicando o site na Locaweb…", async () => {
-    await publishSite(config.load(), { log });
+  guarded("Publicando o site na Locaweb…", async (signal) => {
+    await publishSite(config.load(), { log, signal });
+    if (signal.aborted) return;
     log("Site publicado.");
     setStatus({ state: "ok", message: "Site publicado na Locaweb", lastOk: new Date().toISOString() });
   }),
