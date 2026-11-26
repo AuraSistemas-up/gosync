@@ -145,7 +145,11 @@ async function runSync(force) {
       ? `${s.models} modelos publicados${s.photos ? ` · ${s.photos} foto(s) enviada(s)` : ""}`
       : "Tudo atualizado (sem mudanças)";
     log(msg + ".");
-    setStatus({ state: "ok", message: msg, lastOk: new Date().toISOString(), stats: s });
+    if (s.siteWarning) {
+      // Enviado, mas o site não mostra: é erro para o lojista (os clientes continuam vendo o catálogo antigo).
+      setStatus({ state: "error", message: s.siteWarning, stats: s });
+      new Notification({ title: "GoSync", body: s.siteWarning }).show();
+    } else setStatus({ state: "ok", message: msg, lastOk: new Date().toISOString(), stats: s });
     return s;
   });
   schedule(); // reagenda mesmo após erro: tenta de novo no próximo ciclo

@@ -39,6 +39,28 @@ function persist(state) {
   saveState(state);
 }
 
+/**
+ * Confere pelo endereço público se o site está lendo o catálogo que acabou de ser enviado.
+ * Pega o caso "envio OK, mas para a pasta errada" (ex.: subdomínio servido de /public_html/loja).
+ * Devolve null quando confere (ou quando não dá para saber: sem siteUrl, site fora do ar) e a mensagem de aviso quando não.
+ */
+async function verifySite(cfg, expectedUpdatedAt, log) {
+  if (!cfg.siteUrl || !expectedUpdatedAt) return null;
+  const url = cfg.siteUrl.replace(/\/+$/, "") + "/data/catalog.json?v=" + Date.now();
+  let got;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000), cache: "no-store" });
+    if (r.status === 404) got = null;
+    else if (!r.ok) return null; // site com problema temporário: não acusa pasta errada
+    else got = (await r.json())?.updatedAt ?? null;
+  } catch { return null; }
+  if (got === expectedUpdatedAt) { log("Conferido: o site já mostra o catálogo novo."); return null; }
+  const msg = `O site ${cfg.siteUrl} não está mostrando o catálogo enviado para ${cfg.remoteDir || "/"}. ` +
+    `A pasta do site no servidor provavelmente está errada: use "Diagnosticar e configurar" em Configurações.`;
+  log(`ERRO: ${msg}`);
+  return msg;
+}
+
 /** Erro lançado quando a operação foi cancelada pelo vigia de tempo do processo principal. */
 const checkAbort = (signal) => { if (signal?.aborted) throw new Error("Operação cancelada (tempo limite)."); };
 
@@ -128,7 +150,7 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
   const state = loadState();
   log(`Destino do envio: ${cfg.ftpHost}${cfg.remoteDir || "/"}`);
   if (state.target && state.target !== target) log("O destino mudou desde a última sincronização: tudo será reenviado.");
-  if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null, pages: {}, seoHash: null }); // novo destino: tudo precisa ser reenviado
+  if (state.target !== target) Object.assign(state, { target, uploaded: {}, lastHash: null, lastUpdatedAt: null, pages: {}, seoHash: null }); // novo destino: tudo precisa ser reenviado
   state.photos ??= {};
   state.uploaded ??= {};
   // `force` só ignora o atalho "nada mudou" (reenvia o catálogo). Para refazer as fotos use "Reenviar todas as fotos".
@@ -242,7 +264,8 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
     checkAbort(signal);
     persist(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
-    return { changed: false, models: products.length, photos: 0, failedPhotos: falhas };
+    const siteWarning = await verifySite(cfg, state.lastUpdatedAt, log);
+    return { changed: false, models: products.length, photos: 0, failedPhotos: falhas, siteWarning };
   }
 
   checkAbort(signal);
@@ -319,8 +342,10 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
 
   checkAbort(signal);
   state.lastHash = hash;
+  state.lastUpdatedAt = catalog.updatedAt;
   persist(state);
-  return { changed: true, models: products.length, photos: pendentes.length, failedPhotos: falhas };
+  const siteWarning = await verifySite(cfg, catalog.updatedAt, log);
+  return { changed: true, models: products.length, photos: pendentes.length, failedPhotos: falhas, siteWarning };
 }
 
 function run(cmd, cwd, log) {
@@ -384,4 +409,4 @@ function resetPhotoCache() {
   if (syncAtivo) resetPendente = true; // a sincronização em curso não pode gravar o estado antigo por cima
 }
 
-module.exports = { syncData, publishSite, testFtp, resetPhotoCache };
+module.exports = { syncData, publishSite, testFtp, resetPhotoCache, verifySite };

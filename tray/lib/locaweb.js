@@ -36,6 +36,37 @@ const friendly = (e) => {
 };
 
 /**
+ * Descobre qual pasta o endereço público do site serve: grava um arquivo-marca em `dir` (e, se preciso, em cada
+ * subpasta) e procura pelo endereço público. Devolve a pasta, null (nenhuma) ou undefined (site sem resposta).
+ */
+async function findSiteDir(client, dir, siteUrl) {
+  const { Readable } = require("stream");
+  const base = siteUrl.replace(/\/+$/, "");
+  const name = `gosync-marca-${Date.now().toString(36)}.txt`;
+  const join = (d, f) => `${d === "/" ? "" : d}/${f}`;
+  const probe = async (d) => {
+    const file = join(d, name);
+    try { await client.uploadFrom(Readable.from([name]), file); } catch { return false; }
+    try {
+      const r = await fetch(`${base}/${name}`, { signal: AbortSignal.timeout(10000), cache: "no-store" });
+      if (r.status >= 500) return undefined;
+      return r.ok && (await r.text()).trim() === name;
+    } catch { return undefined; }
+    finally { await client.remove(file).catch(() => {}); }
+  };
+  const first = await probe(dir);
+  if (first !== false) return first ? dir : undefined;
+  let subs = [];
+  try { subs = (await client.list(dir)).filter((f) => f.isDirectory && !f.name.startsWith(".")).map((f) => f.name); } catch {}
+  const skip = /^(fotos|banners|data|p|produto|admin|logo|_astro|cgi-bin|logs?|tmp)$/i;
+  for (const s of subs.filter((n) => !skip.test(n)).slice(0, 40)) {
+    const d = join(dir, s);
+    if (await probe(d)) return d;
+  }
+  return null;
+}
+
+/**
  * Diagnóstico passo a passo. Devolve {ok, steps[], suggestedDir}.
  * Cada step: {name, ok, detail}.
  */
@@ -92,10 +123,19 @@ async function diagnose(cfg) {
       add("Permissão de gravação", false, friendly(e));
       return { ok: false, steps, suggestedDir: dir };
     }
-    return { ok: true, steps, suggestedDir: dir };
+
+    // O endereço público do site lê mesmo essa pasta? (subdomínios costumam usar uma subpasta, ex.: /public_html/loja)
+    if (cfg.siteUrl) {
+      const site = await findSiteDir(client, dir, cfg.siteUrl);
+      if (site === dir) add("Site lê esta pasta", true, cfg.siteUrl);
+      else if (site) { add("Site lê esta pasta", true, `Pasta corrigida para ${site} (é a que ${cfg.siteUrl} mostra)`); return { ok: true, steps, suggestedDir: site }; }
+      else if (site === null) add("Site lê esta pasta", false, `${cfg.siteUrl} não mostra arquivos de ${dir} nem das subpastas. Confira o endereço público ou a pasta do subdomínio no painel da Locaweb.`);
+      // undefined: site fora do ar / sem resposta → não dá para afirmar nada
+    }
+    return { ok: steps.every((x) => x.ok), steps, suggestedDir: dir };
   } finally {
     client.close();
   }
 }
 
-module.exports = { detectHost, diagnose, cleanDomain };
+module.exports = { detectHost, diagnose, cleanDomain, findSiteDir };
