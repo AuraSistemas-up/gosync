@@ -196,6 +196,13 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
     photoNames = new Set(Object.values(state.photos));
   }
 
+  // Numerações: "mostrar todas" deixa qualquer numeração ser escolhida e pedida; senão some com as sem estoque
+  // (se a cor ficar sem nenhuma, mantém as numerações como esgotadas para o produto não ficar vazio).
+  for (const p of products) for (const v of p.variants) {
+    if (cfg.showAllSizes) for (const s of v.sizes) s.available = true;
+    else if (v.sizes.some((s) => s.available)) v.sizes = v.sizes.filter((s) => s.available);
+  }
+
   // Catálogo zerado nunca é publicado: apagaria todos os produtos do site. Normalmente é configuração errada
   // (tipos de produto, banco/arquivo .FDB diferente) ou leitura incompleta; o site continua com o último catálogo bom.
   if (!products.length) {

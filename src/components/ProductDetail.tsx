@@ -181,9 +181,6 @@ export default function ProductDetail({ product, whatsapp, messageTemplate, init
               </button>
             ))}
           </div>
-          {selected && selected.stock <= 3 && (
-            <div class="pm-low">{selected.stock === 1 ? "Última unidade!" : `Restam só ${selected.stock} unidades`}</div>
-          )}
         </div>
 
         <div class="pm-cta">

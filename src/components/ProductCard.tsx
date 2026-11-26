@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { Product } from "../types/product";
-import { categoryName, cmpSize, pagesEnabled, salesKnown } from "../lib/catalog";
+import { categoryName, cmpSize, pagesEnabled } from "../lib/catalog";
 import Photo from "./Photo";
 import { favorites, useFavorites } from "../lib/favorites";
 
@@ -14,7 +14,6 @@ interface Props {
   onOpen?: (product: Product, colorSlug: string) => void;
 }
 
-const LOW_STOCK = 3; // "Últimas unidades" quando o estoque total do modelo é este número ou menos
 const NEW_DAYS = 30; // "Novo" quando cadastrado há até estes dias
 
 export default function ProductCard({ product, size, onOpen }: Props) {
@@ -30,9 +29,6 @@ export default function ProductCard({ product, size, onOpen }: Props) {
   if (size && sizes.includes(size) && !shown.includes(size)) shown[shown.length - 1] = size;
 
   const discount = product.promoPrice ? Math.round((1 - product.promoPrice / product.price) * 100) : 0;
-  const totalStock = product.variants.reduce((t, x) => t + x.totalStock, 0);
-  // Só marca "Últimas unidades" quando o modelo está acabando E vende (evita o selo em metade da loja).
-  const lowStock = totalStock > 0 && totalStock <= LOW_STOCK && (!salesKnown() || (product.sold ?? 0) > 0);
   const isNew = !!product.added && Date.now() - new Date(product.added).getTime() <= NEW_DAYS * 86400000;
   const href = pagesEnabled() ? `/p/${encodeURIComponent(product.id)}/?cor=${v.colorSlug}` : `/produto/?id=${encodeURIComponent(product.id)}&cor=${v.colorSlug}`;
 
@@ -49,11 +45,10 @@ export default function ProductCard({ product, size, onOpen }: Props) {
     >
       <div class="card-photo">
         {v.image ? <Photo src={v.image} alt={`${product.name} ${v.color}`} mode="card" /> : <span class="no-photo">Sem foto</span>}
-        {(discount > 0 || lowStock || isNew) && (
+        {(discount > 0 || isNew) && (
           <div class="badges">
             {discount > 0 && <span class="badge-off">Oferta -{discount}%</span>}
             {isNew && <span class="badge-new">Novo</span>}
-            {lowStock && <span class="badge-low">{totalStock === 1 ? "Última unidade" : "Últimas unidades"}</span>}
           </div>
         )}
         <button
