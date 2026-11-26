@@ -48,11 +48,14 @@ function load() {
   return cfg;
 }
 
-/** `patch` com segredo vazio mantém o valor atual. */
+/** `patch` com segredo vazio mantém o valor atual; um único "-" apaga o segredo salvo. */
 function save(patch) {
   const cur = load();
   const next = { ...cur, ...patch };
-  for (const k of SECRETS) if (!patch[k]) next[k] = cur[k];
+  for (const k of SECRETS) {
+    if (patch[k] === "-") next[k] = "";
+    else if (!patch[k]) next[k] = cur[k];
+  }
   next.intervalMin = Math.max(5, Math.min(1440, Number(next.intervalMin) || 15));
   const toDisk = { ...next };
   for (const k of SECRETS) toDisk[k] = enc(next[k]);

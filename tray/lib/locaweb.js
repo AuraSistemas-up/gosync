@@ -72,8 +72,14 @@ async function diagnose(cfg) {
     }
 
     const found = WEB_ROOTS.find((r) => names.includes(r));
-    const dir = found ? "/" + found : cfg.remoteDir || "/";
-    add("Pasta do site", true, found ? `Encontrada: /${found}` : "Padrão não encontrada; usando a raiz do FTP");
+    // Se a pasta já configurada existe no servidor, MANTÉM (o site pode ficar numa subpasta, ex.: /public_html/loja).
+    // Trocar por /public_html faria o GoSync enviar para o lugar errado.
+    let keep = false;
+    if (cfg.remoteDir && cfg.remoteDir !== "/") {
+      try { await client.cd(cfg.remoteDir); keep = true; } catch { /* não existe: usa a padrão */ }
+    }
+    const dir = keep ? cfg.remoteDir : found ? "/" + found : cfg.remoteDir || "/";
+    add("Pasta do site", true, keep ? `Mantida a pasta configurada: ${dir}` : found ? `Encontrada: /${found}` : "Padrão não encontrada; usando a raiz do FTP");
 
     const test = `${dir === "/" ? "" : dir}/.gosync-teste`;
     try {
