@@ -1,3 +1,4 @@
+const { cmpSize } = require("./firebird-model");
 // Busca no ERP e agrupa SKUs em modelo > cor > numeração.
 // Espelha src/types/product.ts. Ajuste RawErpItem/groupProducts ao JSON real do seu ERP.
 
@@ -5,9 +6,19 @@ const slugify = (s) =>
   String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+// Aceita 12.9 | "12.90" | "12,90" | "1.234,56" | "1,234.56" | "1.234". Antes, "12.90" virava 1290.
 const toNumber = (v) => {
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-  const n = Number(String(v ?? "0").replace(/\./g, "").replace(",", "."));
+  let t = String(v ?? "0").trim().replace(/[^\d.,-]/g, "");
+  const lastDot = t.lastIndexOf("."), lastComma = t.lastIndexOf(",");
+  if (lastDot >= 0 && lastComma >= 0) {
+    t = lastComma > lastDot ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    t = t.replace(/\./g, "").replace(",", ".");
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) {
+    t = t.replace(/\./g, ""); // "1.234" = milhar
+  }
+  const n = Number(t);
   return Number.isFinite(n) ? n : 0;
 };
 
@@ -96,7 +107,7 @@ function groupProducts(items) {
   const out = [...products.values()];
   for (const p of out) {
     for (const v of p.variants) {
-      v.sizes.sort((a, b) => Number(a.size) - Number(b.size));
+      v.sizes.sort((a, b) => cmpSize(a.size, b.size)); // números primeiro, depois P/M/G
       v.totalStock = v.sizes.reduce((t, s) => t + s.stock, 0);
     }
     p.variants = p.variants.filter((v) => v.totalStock > 0);

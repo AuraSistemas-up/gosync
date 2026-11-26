@@ -80,7 +80,7 @@ const cmpSize = (a, b) => {
  * @param log       (texto) => void
  * @returns Product[] já agrupado, no formato de src/types/product.ts
  */
-async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }) {
+async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"], ids = {} }) {
   // REGRA DE PUBLICAÇÃO: PRD_STATUS = 'A' (ativo) E PRD_EXPORTAR = 'S' E PRD_TIPO_PRODUTO nos tipos permitidos
   // (N = normal, G = grade com variações; padrão "N,G") E com estoque > 0.
   const tiposList = (Array.isArray(tipos) ? tipos : String(tipos).split(/[,;\s]+/))
@@ -93,7 +93,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
   const STOCK = "EXISTS(SELECT 1 FROM TB_PRODUTO_ESTOQUE e WHERE e.PRDE_PRODUTO = p.PRD_ID AND e.PRDE_ESTOQUE > 0)";
   const prods = await q(`
     SELECT p.PRD_ID, p.PRD_CODIGO, p.PRD_DESCRICAO, p.PRD_REFERENCIA, p.PRD_PRECO_VENDA, g.PGRU_DESCRICAO AS GRUPO, m.PMAR_DESCRICAO AS MARCA,
-           p.PRD_IMAGEM, p.PRD_DT_CADASTRO AS CAD
+           p.PRD_IMAGEM, OCTET_LENGTH(p.PRD_IMAGEM) AS IMGLEN, p.PRD_DT_CADASTRO AS CAD
     FROM TB_PRODUTO p
     LEFT JOIN TB_PROD_GRUPO g ON g.PGRU_ID = p.PRD_GRUPO
     LEFT JOIN TB_PROD_MARCA m ON m.PMAR_ID = p.PRD_MARCA
@@ -126,7 +126,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
 
   log("Lendo variações e atributos…");
   const vars = await q(`
-    SELECT v.PRV_PRODUTO AS P, v.PRV_ID AS V, v.PRV_DESCRICAO AS D, v.PRV_REFERENCIA AS REF, v.PRV_PRECO AS PRECO, v.PRV_IMAGEM AS IMG
+    SELECT v.PRV_PRODUTO AS P, v.PRV_ID AS V, v.PRV_DESCRICAO AS D, v.PRV_REFERENCIA AS REF, v.PRV_PRECO AS PRECO, v.PRV_IMAGEM AS IMG, OCTET_LENGTH(v.PRV_IMAGEM) AS IMGLEN
     FROM TB_PRODUTO_VARIACAO v JOIN TB_PRODUTO p ON p.PRD_ID = v.PRV_PRODUTO
     WHERE v.PRV_STATUS = 'A' AND p.PRD_STATUS = 'A' AND p.PRD_EXPORTAR = 'S' AND ${TIPO} AND ${STOCK}`);
   const attrs = await q(`
@@ -147,7 +147,9 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
 
   /* ----- monta modelos ----- */
   const models = new Map(); // chave → model
-  const getModel = (key, init) => models.get(key) ?? (models.set(key, { ...init, variants: new Map(), minPrice: Infinity, gender: undefined, sold: 0, added: "" }).get(key));
+  // `ids` (persistido entre sincronizações): chave do modelo → endereço já publicado. Sem isso, o modelo agrupado
+  // mudaria de endereço quando a numeração de menor PRD_ID esgotasse (links, favoritos e ocultos/destaques quebrariam).
+  const getModel = (key, init) => models.get(key) ?? (models.set(key, { ...init, id: (ids[key] ??= init.id), variants: new Map(), minPrice: Infinity, gender: undefined, sold: 0, added: "" }).get(key));
   // Soma as vendas e guarda a data de cadastro mais recente entre os cadastros que formam o modelo.
   const track = (m, p) => {
     m.sold += sold.get(p.PRD_ID) || 0;
@@ -191,14 +193,14 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
         const tam = at.find((a) => a.tipo.includes("TAMANHO"));
         const variant = addVariant(m, cor ? titleCase(cor) : null);
         m.gender ??= genderOf(tam?.tipo ?? v.D);
-        const url = await photoUrl(`v${p.PRD_ID}:${v.V}`, v.IMG);
+        const url = await photoUrl(`v${p.PRD_ID}:${v.V}:${v.IMGLEN ?? ""}`, v.IMG);
         if (url && !variant.images.includes(url)) variant.images.push(url);
         const size = tam?.valor || (String(v.D || "").match(/(\d{2}(?:\/\d{2})?)\s*$/)?.[1]) || "Único";
         addSize(variant, size, stock.get(`${p.PRD_ID}:${v.V}`) || 0, v.REF || p.PRD_REFERENCIA || String(p.PRD_CODIGO), url);
         const vp = Number(v.PRECO);
         m.minPrice = Math.min(m.minPrice, vp > 0 ? vp : price || Infinity);
       }
-      const pu = await photoUrl(`p${p.PRD_ID}`, p.PRD_IMAGEM);
+      const pu = await photoUrl(`p${p.PRD_ID}:${p.IMGLEN ?? ""}`, p.PRD_IMAGEM);
       if (pu) for (const variant of m.variants.values()) if (!variant.images.length) variant.images.push(pu);
     } else {
       // Produto "legado": um cadastro por numeração (ex.: "TENIS RAINHA VL 2500 N44") → agrupa por modelo.
@@ -208,7 +210,7 @@ async function buildProducts({ q, photoUrl, log = () => {}, tipos = ["N", "G"] }
       m.gender ??= genderOf(p.GRUPO);
       track(m, p);
       const variant = addVariant(m, null);
-      const url = await photoUrl(`p${p.PRD_ID}`, p.PRD_IMAGEM);
+      const url = await photoUrl(`p${p.PRD_ID}:${p.IMGLEN ?? ""}`, p.PRD_IMAGEM);
       if (url && !variant.images.includes(url)) variant.images.push(url);
       addSize(variant, info.size || "Único", qty, p.PRD_REFERENCIA || String(p.PRD_CODIGO));
       m.minPrice = Math.min(m.minPrice, price || Infinity);
