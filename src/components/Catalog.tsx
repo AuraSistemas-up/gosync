@@ -1,3 +1,4 @@
+import { Fragment } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Product } from "../types/product";
 import { categoryName, cmpSize, label, listCategories } from "../lib/catalog";
@@ -59,10 +60,10 @@ function Pager({ page, pages, go }: { page: number; pages: number; go: (n: numbe
     <nav class="pagination" aria-label="Paginação">
       <button type="button" disabled={page === 1} onClick={() => go(page - 1)}>‹ Anterior</button>
       {nums.map((n, i) => (
-        <>
+        <Fragment key={n}>
           {i > 0 && n - nums[i - 1] > 1 && <span style="align-self:center;color:var(--text-muted)">…</span>}
-          <button key={n} type="button" class={n === page ? "active" : ""} onClick={() => go(n)}>{n}</button>
-        </>
+          <button type="button" class={n === page ? "active" : ""} onClick={() => go(n)}>{n}</button>
+        </Fragment>
       ))}
       <button type="button" disabled={page === pages} onClick={() => go(page + 1)}>Próxima ›</button>
     </nav>
@@ -152,7 +153,13 @@ export default function Catalog({ products, whatsapp = "", message, banners, fea
   }, [products]);
 
   // Contadores de cada faceta, respeitando os demais filtros.
-  const count = (skip: keyof F, test: (p: Product) => boolean) => products.filter((p) => matches(p, f, skip) && test(p)).length;
+  // Filtra uma vez por faceta (e só quando produtos/filtros mudam); cada contador depois percorre só essa lista.
+  // Antes, cada contador refazia todos os filtros (inclusive a busca tolerante) em todos os produtos.
+  const base = useMemo(() => {
+    const m = new Map<keyof F, Product[]>();
+    return (skip: keyof F) => m.get(skip) ?? m.set(skip, products.filter((p) => matches(p, f, skip))).get(skip)!;
+  }, [products, f]);
+  const count = (skip: keyof F, test: (p: Product) => boolean) => base(skip).filter(test).length;
 
   const results = useMemo(() => {
     const list = products.filter((p) => matches(p, f));

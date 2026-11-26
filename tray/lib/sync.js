@@ -270,6 +270,8 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
     checkAbort(signal);
     persist(state);
     log("Nada mudou desde a última sincronização. Nada enviado.");
+    // Instalações anteriores à v1.0.20 não guardavam a data: usa o último catálogo enviado, salvo no PC.
+    if (!state.lastUpdatedAt) { try { state.lastUpdatedAt = JSON.parse(fs.readFileSync(path.join(dirs().out, "catalog.json"), "utf8")).updatedAt; persist(state); } catch {} }
     const siteWarning = await verifySite(cfg, state.lastUpdatedAt, log);
     return { changed: false, models: products.length, photos: 0, failedPhotos: falhas, siteWarning };
   }
@@ -306,6 +308,17 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
         state.uploaded["b/" + b.name] = true;
       }
     }
+    checkAbort(signal);
+    // Catálogo logo depois das fotos (que ele referencia): num reenvio completo os produtos aparecem no site sem esperar
+    // as milhares de páginas de prévia. Enquanto uma página não existe, o .htaccess abre a página de produto normal.
+    log("Enviando catálogo…");
+    await client.ensureDir(posix.join(root, "data"));
+    const tmp = posix.join(root, "data", "catalog.json.tmp");
+    const final = posix.join(root, "data", "catalog.json");
+    await client.uploadFrom(catalogFile, tmp); // envio atômico: temporário + renomear
+    try { await client.rename(tmp, final); }
+    catch { await client.remove(final).catch(() => {}); await client.rename(tmp, final); }
+    state.lastUpdatedAt = catalog.updatedAt; // já está no ar, mesmo que as páginas parem no meio
     if (seo && (pagesPendentes.length || seoMudou)) {
       const { Readable } = require("stream");
       if (pagesPendentes.length) {
@@ -333,14 +346,6 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
         }
       }
     }
-    checkAbort(signal);
-    log("Enviando catálogo…");
-    await client.ensureDir(posix.join(root, "data"));
-    const tmp = posix.join(root, "data", "catalog.json.tmp");
-    const final = posix.join(root, "data", "catalog.json");
-    await client.uploadFrom(catalogFile, tmp); // catálogo por último e de forma atômica
-    try { await client.rename(tmp, final); }
-    catch { await client.remove(final).catch(() => {}); await client.rename(tmp, final); }
   } finally {
     signal?.removeEventListener("abort", onAbort);
     client.close();
