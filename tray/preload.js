@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld("api", {
   pickFile: (filters) => ipcRenderer.invoke("pick:file", filters),
   pickFolder: () => ipcRenderer.invoke("pick:folder"),
   onStatus: (cb) => ipcRenderer.on("status", (_e, s) => cb(s)),
+  onConfig: (cb) => ipcRenderer.on("config", (_e, c) => cb(c)),
   onLog: (cb) => ipcRenderer.on("log", (_e, l) => cb(l)),
 });

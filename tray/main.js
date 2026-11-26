@@ -49,7 +49,7 @@ function createWindow(show = true) {
     show,
     title: "GoSync",
     icon: ICON,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#0B0F17",
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
   });
@@ -85,7 +85,7 @@ function updateTray() {
         label: "Iniciar com o Windows",
         type: "checkbox",
         checked: !!c.autostart,
-        click: (i) => { config.save({ autostart: i.checked }); applyAutostart(i.checked); },
+        click: (i) => { const next = config.save({ autostart: i.checked }); applyAutostart(i.checked); push("config", config.forUi(next)); }, // a tela precisa saber, senão o próximo "Salvar" desfaz
       },
       { type: "separator" },
       { label: "Sair", click: () => { quitting = true; app.quit(); } },
@@ -174,9 +174,10 @@ function initUpdater() {
     updateReady = true;
     log(`Versão ${i.version} baixada.`);
     setUpdate({ state: "ready", version: i.version, message: `v${i.version} pronta para instalar` });
-    // Instala sozinho assim que não houver sincronização em andamento.
+    // Instala sozinho assim que não houver sincronização em andamento nem janela aberta
+    // (alguém pode estar editando as configurações sem ter salvo). Com a janela aberta, o botão "Instalar e reiniciar" fica disponível.
     const tryInstall = () => {
-      if (status.state === "running") return setTimeout(tryInstall, 30_000);
+      if (status.state === "running" || (win && !win.isDestroyed() && win.isVisible())) return setTimeout(tryInstall, 60_000);
       new Notification({ title: "GoSync", body: `Atualizando para a v${i.version}…` }).show();
       setTimeout(() => { quitting = true; updater.quitAndInstall(true, true); }, 3000);
     };
@@ -195,9 +196,11 @@ async function checkUpdate(manual) {
 /* ---------- IPC ---------- */
 ipcMain.handle("init", () => ({ config: config.forUi(config.load()), status, logs, update, version: app.getVersion(), packaged: app.isPackaged }));
 ipcMain.handle("config:save", (_e, patch) => {
+  const prev = config.load();
   const next = config.save(patch);
   applyAutostart(next.autostart);
-  schedule();
+  // Só reinicia a contagem quando muda algo que afeta a agenda; salvar outros campos não adia a próxima sincronização.
+  if (prev.intervalMin !== next.intervalMin || configured(prev) !== configured(next) || !timer) schedule();
   updateTray();
   return config.forUi(next);
 });

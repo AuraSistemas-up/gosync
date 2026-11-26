@@ -602,6 +602,8 @@ $("#updBtn").addEventListener("click", () => ($("#updBtn").dataset.ready ? api.i
 api.onUpdate(renderUpdate);
 
 api.onStatus(renderStatus);
+// Opção alterada pela bandeja: atualiza só o campo, sem apagar o que estiver sendo digitado nos outros.
+api.onConfig?.((c) => { $("#form").autostart.checked = !!c.autostart; });
 api.onLog(addLog);
 api.init().then(({ config, status, logs, update, version }) => {
   $("#ver").textContent = "v" + version;

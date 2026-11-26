@@ -41,7 +41,7 @@ export function matchesQuery(p: Product, query: string): boolean {
     if (h.text.includes(t)) return true;
     if (t.length < 4) return false;
     const max = t.length >= 7 ? 2 : 1;
-    return h.words.some((w) => w[0] === t[0] && within(t, w.slice(0, Math.max(t.length, w.length)), max));
+    return h.words.some((w) => w[0] === t[0] && within(t, w, max));
   });
 }
 
