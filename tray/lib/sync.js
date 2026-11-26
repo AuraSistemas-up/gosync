@@ -196,6 +196,12 @@ async function syncDataInner(cfg, { force = false, log = () => {}, signal } = {}
     photoNames = new Set(Object.values(state.photos));
   }
 
+  // Catálogo zerado nunca é publicado: apagaria todos os produtos do site. Normalmente é configuração errada
+  // (tipos de produto, banco/arquivo .FDB diferente) ou leitura incompleta; o site continua com o último catálogo bom.
+  if (!products.length) {
+    throw new Error("Nenhum produto com estoque foi encontrado no ERP. Para não deixar o site vazio, nada foi enviado. Confira o banco (.FDB) e os tipos de produto em Configurações.");
+  }
+
   // Páginas por produto (prévia no WhatsApp/Google), sitemap e robots: só se o endereço do site estiver configurado.
   let seo = null;
   if (cfg.siteUrl) {

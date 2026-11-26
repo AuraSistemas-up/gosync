@@ -6,7 +6,7 @@
  * Se FTP_PASSWORD não estiver no arquivo, pede a senha no terminal (sem mostrar o que você digita).
  *
  * Regras de envio (para não apagar o que o painel admin do servidor já guarda):
- *  - data/config.json, banners/ e logo/: só enviados se ainda NÃO existirem no servidor (semente inicial).
+ *  - data/config.json, data/catalog.json, banners/ e logo/: só enviados se ainda NÃO existirem no servidor (semente inicial).
  *  - fotos/ e demais arquivos: enviados quando novos ou com tamanho diferente.
  *  - admin/credenciais.json e admin/tentativas.json nunca são enviados.
  */
@@ -36,7 +36,8 @@ for (const k of ["FTP_HOST", "FTP_USER", "FTP_DIR"]) {
 }
 const REMOTE_ROOT = env.FTP_DIR.replace(/\/+$/, "") || "/";
 
-const SEED_ONLY = (rel) => rel === "data/config.json" || rel.startsWith("banners/") || rel.startsWith("logo/");
+// data/catalog.json também: o catálogo real é do GoSync; o do build local pode ser de exemplo (dev/make-sample.mjs).
+const SEED_ONLY = (rel) => rel === "data/config.json" || rel === "data/catalog.json" || rel.startsWith("banners/") || rel.startsWith("logo/");
 const NEVER = (rel) => /^admin\/(credenciais|tentativas)\.json$/.test(rel) || /\.tmp[0-9a-f]*$/.test(rel);
 
 function walk(dir, base = "") {

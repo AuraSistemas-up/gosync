@@ -5,7 +5,7 @@ export default function ProductPage() {
   const s = useCatalog();
   const q = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
   // O id vem de /p/<id>/ (páginas com prévia) ou de /produto/?id=<id>.
-  const pathId = typeof location !== "undefined" ? /^\/p\/([^/]+)/.exec(location.pathname)?.[1] : undefined;
+  const pathId = typeof location !== "undefined" ? /^\/p\/([^/]+?)(?:\.html)?(?:\/|$)/.exec(location.pathname)?.[1] : undefined;
   const id = q.get("id") ?? (pathId ? decodeURIComponent(pathId) : null);
   const color = q.get("cor") ?? undefined;
 
